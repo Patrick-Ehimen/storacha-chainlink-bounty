@@ -1,135 +1,355 @@
-# Turborepo starter
+# Storacha x Chainlink: Decentralized Data Bounty Marketplace
 
-This Turborepo starter is maintained by the Turborepo core team.
+A trustless marketplace for data bounties powered by Storacha (decentralized storage) and Chainlink (oracle verification).
 
-## Using this example
+## 📋 Project Overview
 
-Run the following command:
+This project integrates **Storacha** (decentralized storage on IPFS/Filecoin) with **Chainlink** (oracle network) to create a trustless marketplace where:
 
-```sh
-npx create-turbo@latest
+- 💰 **Creators** post bounties for specific datasets
+- 📤 **Contributors** upload data to decentralized storage
+- ✅ **Oracles** verify data quality and compliance
+- 💸 **Smart Contracts** automatically release payments
+
+## 🏗️ Monorepo Structure
+
+This is a Turborepo monorepo containing:
+
+### Apps
+
+- **`apps/frontend`** - Next.js web application for creating bounties and submitting data
+
+### Packages
+
+- **`packages/contracts`** - Solidity smart contracts (Hardhat)
+  - BountyRegistry - Manages bounty lifecycle
+  - DataRegistry - Tracks data submissions
+  - FunctionsConsumer - Chainlink oracle integration
+  - EscrowManager - Handles payment escrow
+
+- **`packages/sdk`** - TypeScript SDK for Storacha integration
+  - Upload/retrieve data from IPFS
+  - UCAN capability delegation
+  - Filecoin storage proofs
+
+- **`packages/functions`** - Chainlink Functions verification logic
+  - Off-chain data validation
+  - JSON Schema compliance checking
+  - Quality scoring algorithms
+
+- **`packages/eslint-config`** - Shared ESLint configuration
+- **`packages/typescript-config`** - Shared TypeScript configuration
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+```bash
+node >= 18.0.0
+pnpm >= 9.0.0
 ```
 
-## What's inside?
+### 1. Installation
 
-This Turborepo includes the following packages/apps:
+```bash
+# Clone the repository
+git clone <repo-url>
+cd storacha-chainlink-bounty
 
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
+# Install dependencies
+pnpm install
 ```
 
-You can build a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
+### 2. Environment Setup
 
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build --filter=docs
+Create `.env` files in the appropriate packages:
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-```
+**`packages/contracts/.env`:**
 
-### Develop
+```env
+# Network RPC URLs
+SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
+ARBITRUM_SEPOLIA_RPC_URL=https://arb-sepolia.g.alchemy.com/v2/YOUR_KEY
 
-To develop all apps and packages, run the following command:
+# Deployment
+PRIVATE_KEY=your_private_key_here
 
-```
-cd my-turborepo
+# Verification
+ETHERSCAN_API_KEY=your_etherscan_key
+ARBISCAN_API_KEY=your_arbiscan_key
 
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
+# Chainlink
+CHAINLINK_ROUTER=0xb83E47C2bC239B3bf370bc41e1459A34b41238D0  # Sepolia
+SUBSCRIPTION_ID=your_subscription_id
+DON_ID=fun-ethereum-sepolia-1
 ```
 
-You can develop a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
+**`apps/frontend/.env.local`:**
 
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev --filter=web
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
+```env
+NEXT_PUBLIC_BOUNTY_REGISTRY=0x...  # Deployed contract address
+NEXT_PUBLIC_DATA_REGISTRY=0x...
 ```
 
-### Remote Caching
+### 3. Development
 
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
+Start the development environment:
 
-Turborepo can use a technique known as [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
+```bash
+# Run all packages in dev mode
+pnpm dev
 
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo login
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
+# Run specific package
+pnpm dev --filter=@storacha-chainlink/frontend
 ```
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+### 4. Build
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
+Build all packages:
 
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo link
+```bash
+# Build everything
+pnpm build
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
+# Build specific package
+pnpm build --filter=@storacha-chainlink/contracts
 ```
 
-## Useful Links
+## 📦 Package Scripts
 
-Learn more about the power of Turborepo:
+### Contracts (`packages/contracts`)
 
-- [Tasks](https://turborepo.com/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.com/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.com/docs/reference/configuration)
-- [CLI Usage](https://turborepo.com/docs/reference/command-line-reference)
+```bash
+# Compile contracts
+pnpm compile
+
+# Run tests
+pnpm test
+
+# Deploy to local network
+pnpm node                    # Terminal 1: Start local node
+pnpm deploy                  # Terminal 2: Deploy contracts
+
+# Deploy to testnet
+pnpm deploy:sepolia
+
+# Verify on Etherscan
+pnpm verify --network sepolia <CONTRACT_ADDRESS>
+
+# Generate coverage report
+pnpm coverage
+```
+
+### Frontend (`apps/frontend`)
+
+```bash
+# Development server
+pnpm dev
+
+# Production build
+pnpm build
+
+# Start production server
+pnpm start
+
+# Run linter
+pnpm lint
+```
+
+## 🎯 How It Works
+
+### 1. Create a Bounty
+
+```typescript
+// Creator posts a bounty
+await createBounty({
+  title: "Weather Data Collection",
+  description: "Hourly temperature readings from major cities",
+  schemaUri: "bafybeischema123...", // IPFS CID of JSON Schema
+  deadline: Date.now() + 7 * 24 * 60 * 60, // 7 days
+  maxSubmissions: 100,
+  reward: "0.5", // ETH
+});
+```
+
+### 2. Upload Data to Storacha
+
+```typescript
+// Contributor uploads data
+const storacha = await StorachaBountyClient.create({
+  email: "contributor@example.com",
+  spaceName: "weather-data",
+});
+
+const { cid } = await storacha.uploadFile(dataFile);
+// Returns: bafybeidata123...
+```
+
+### 3. Submit to Smart Contract
+
+```typescript
+// Submit CID to bounty
+await submitData({
+  bountyId: 1,
+  cid: "bafybeidata123...",
+  metadata: JSON.stringify({ source: "weather-station-42" }),
+});
+```
+
+### 4. Chainlink Verification
+
+The smart contract triggers Chainlink Functions which:
+
+- Fetches data from IPFS via multiple gateways
+- Validates against the bounty's JSON Schema
+- Calculates quality score
+- Returns verification result on-chain
+
+### 5. Automatic Payment
+
+If verified, the smart contract automatically releases funds to the contributor.
+
+## 🔐 Architecture
+
+```
+┌─────────────────────────────────────────┐
+│         Frontend (Next.js)              │
+│   Create Bounties | Submit Data         │
+└─────────────────┬───────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────┐
+│      Smart Contracts (Hardhat)          │
+│  BountyRegistry | DataRegistry          │
+│  FunctionsConsumer | EscrowManager      │
+└─────────┬──────────────────┬────────────┘
+          │                  │
+          │                  ▼
+          │        ┌──────────────────────┐
+          │        │  Chainlink DON       │
+          │        │  Verification Logic  │
+          │        └──────────┬───────────┘
+          │                   │
+          ▼                   ▼
+┌─────────────────────────────────────────┐
+│   Storacha (IPFS + Filecoin)            │
+│   Decentralized Data Storage            │
+└─────────────────────────────────────────┘
+```
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+pnpm test
+
+# Test specific package
+pnpm test --filter=@storacha-chainlink/contracts
+
+# Smart contract tests with coverage
+cd packages/contracts
+pnpm coverage
+```
+
+## 📝 Technology Stack
+
+| Component           | Technology                      |
+| ------------------- | ------------------------------- |
+| **Storage**         | Storacha (w3up), IPFS, Filecoin |
+| **Oracles**         | Chainlink Functions             |
+| **Blockchain**      | Ethereum, Arbitrum (L2)         |
+| **Smart Contracts** | Solidity 0.8.20, Hardhat        |
+| **Frontend**        | Next.js 16, React 19            |
+| **Auth**            | UCAN (ucanto)                   |
+
+## 🛠️ Development Workflow
+
+### Adding a New Package
+
+```bash
+# Create package directory
+mkdir -p packages/my-package
+
+# Initialize package.json
+cd packages/my-package
+pnpm init
+
+# Update name to @storacha-chainlink/my-package
+```
+
+### Adding Dependencies
+
+```bash
+# Add to specific package
+pnpm add <package> --filter=@storacha-chainlink/contracts
+
+# Add dev dependency
+pnpm add -D <package> --filter=@storacha-chainlink/frontend
+
+# Add to workspace root
+pnpm add -w <package>
+```
+
+## 🚢 Deployment
+
+### Smart Contracts
+
+1. Deploy to Sepolia testnet:
+
+```bash
+cd packages/contracts
+pnpm deploy:sepolia
+```
+
+2. Verify on Etherscan:
+
+```bash
+pnpm verify --network sepolia <CONTRACT_ADDRESS>
+```
+
+3. Update frontend environment variables with deployed addresses
+
+### Frontend
+
+Deploy to Vercel:
+
+```bash
+cd apps/frontend
+vercel --prod
+```
+
+## 📚 Documentation
+
+- [Architecture Overview](./docs/ARCHITECTURE_OVERVIEW.md)
+- [Technical Specifications](./docs/TECHNICAL_SPECIFICATIONS.md)
+- [Implementation Guide](./docs/IMPLEMENTATION_GUIDE.md)
+- [Storacha Documentation](https://docs.storacha.network)
+- [Chainlink Functions](https://docs.chain.link/chainlink-functions)
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🔗 Resources
+
+- [Storacha GitHub](https://github.com/storacha)
+- [Chainlink GitHub](https://github.com/smartcontractkit/chainlink)
+- [Hardhat Documentation](https://hardhat.org/docs)
+- [Turborepo Documentation](https://turborepo.com/docs)
+
+## ⚠️ Disclaimer
+
+This project is in **active development**. Do not use in production without:
+
+- ✅ Complete security audit
+- ✅ Comprehensive testing on testnets
+- ✅ Legal review of bounty mechanics
+- ✅ Insurance/risk management strategy
