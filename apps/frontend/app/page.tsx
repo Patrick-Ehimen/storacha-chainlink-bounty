@@ -1,8 +1,14 @@
 import styles from "./page.module.css";
+import { ConnectWallet } from "./components/ConnectWallet";
 
 export default function Home() {
   return (
     <div className={styles.page}>
+      {/* Header with Wallet Connect */}
+      <header className={styles.header}>
+        <ConnectWallet />
+      </header>
+
       <main className={styles.main}>
         {/* Hero Section */}
         <section className={styles.hero}>
