@@ -46,24 +46,29 @@ const customDarkTheme = darkTheme({
   overlayBlur: "small",
 });
 
-// Hook to detect theme from system preference or DOM
+// Hook to detect theme from DOM class (syncs with ThemeProvider)
 function useDetectTheme() {
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(true);
 
   useEffect(() => {
-    // Check system preference
+    // Initial check
     const checkTheme = () => {
-      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      setIsDark(prefersDark);
+      setIsDark(document.documentElement.classList.contains("dark"));
     };
-    
     checkTheme();
 
-    // Listen for system theme changes
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    mediaQuery.addEventListener("change", checkTheme);
+    // Watch for class changes on html element
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === "class") {
+          checkTheme();
+        }
+      });
+    });
 
-    return () => mediaQuery.removeEventListener("change", checkTheme);
+    observer.observe(document.documentElement, { attributes: true });
+
+    return () => observer.disconnect();
   }, []);
 
   return isDark;

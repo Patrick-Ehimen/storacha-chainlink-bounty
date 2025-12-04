@@ -1,11 +1,13 @@
 import styles from "./page.module.css";
+import { ThemeToggle } from "./components/ThemeToggle";
 import { ConnectWallet } from "./components/ConnectWallet";
 
 export default function Home() {
   return (
     <div className={styles.page}>
-      {/* Header with Wallet Connect */}
+      {/* Header with Theme Toggle and Wallet Connect */}
       <header className={styles.header}>
+        <ThemeToggle />
         <ConnectWallet />
       </header>
 
