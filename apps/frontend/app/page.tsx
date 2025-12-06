@@ -1,97 +1,153 @@
-import Image, { type ImageProps } from "next/image";
 import styles from "./page.module.css";
-
-type Props = Omit<ImageProps, "src"> & {
-  srcLight: string;
-  srcDark: string;
-};
-
-const ThemeImage = (props: Props) => {
-  const { srcLight, srcDark, ...rest } = props;
-
-  return (
-    <>
-      <Image {...rest} src={srcLight} className="imgLight" />
-      <Image {...rest} src={srcDark} className="imgDark" />
-    </>
-  );
-};
 
 export default function Home() {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <ThemeImage
-          className={styles.logo}
-          srcLight="turborepo-dark.svg"
-          srcDark="turborepo-light.svg"
-          alt="Turborepo logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>apps/web/app/page.tsx</code>
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+        {/* Hero Section */}
+        <section className={styles.hero}>
+          <span className={styles.badge}>Powered by Web3</span>
 
-        <div className={styles.ctas}>
+          <h1 className={styles.title}>
+            Decentralized Data{" "}
+            <span className={styles.titleGradient}>Bounty Marketplace</span>
+          </h1>
+
+          <p className={styles.subtitle}>
+            A trustless marketplace where creators post bounties, contributors
+            upload data to decentralized storage, and smart contracts
+            automatically release payments upon verification.
+          </p>
+
+          <div className={styles.ctas}>
+            <a href="#" className={styles.primary}>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
+              </svg>
+              Explore Bounties
+            </a>
+            <a href="#" className={styles.secondary}>
+              Create Bounty
+            </a>
+          </div>
+        </section>
+
+        {/* Features Section */}
+        <section className={styles.features}>
+          <div className={styles.featureCard}>
+            <div className={`${styles.featureIcon} ${styles.storage}`}>📦</div>
+            <h3 className={styles.featureTitle}>Storacha Storage</h3>
+            <p className={styles.featureDescription}>
+              Data is stored on IPFS and backed by Filecoin through Storacha,
+              ensuring permanent, censorship-resistant storage.
+            </p>
+          </div>
+
+          <div className={styles.featureCard}>
+            <div className={`${styles.featureIcon} ${styles.oracle}`}>🔗</div>
+            <h3 className={styles.featureTitle}>Chainlink Verification</h3>
+            <p className={styles.featureDescription}>
+              Chainlink Functions validate data quality and schema compliance
+              off-chain before triggering on-chain rewards.
+            </p>
+          </div>
+
+          <div className={styles.featureCard}>
+            <div className={`${styles.featureIcon} ${styles.payment}`}>💰</div>
+            <h3 className={styles.featureTitle}>Automatic Payments</h3>
+            <p className={styles.featureDescription}>
+              Smart contracts hold bounty funds in escrow and automatically
+              release payments when data passes verification.
+            </p>
+          </div>
+
+          <div className={styles.featureCard}>
+            <div className={`${styles.featureIcon} ${styles.trust}`}>🛡️</div>
+            <h3 className={styles.featureTitle}>Trustless System</h3>
+            <p className={styles.featureDescription}>
+              No intermediaries needed. The entire flow from submission to
+              payment is handled by decentralized protocols.
+            </p>
+          </div>
+        </section>
+      </main>
+
+      <footer className={styles.footer}>
+        <div className={styles.footerLinks}>
           <a
-            className={styles.primary}
-            href="https://vercel.com/new/clone?demo-description=Learn+to+implement+a+monorepo+with+a+two+Next.js+sites+that+has+installed+three+local+packages.&demo-image=%2F%2Fimages.ctfassets.net%2Fe5382hct74si%2F4K8ZISWAzJ8X1504ca0zmC%2F0b21a1c6246add355e55816278ef54bc%2FBasic.png&demo-title=Monorepo+with+Turborepo&demo-url=https%3A%2F%2Fexamples-basic-web.vercel.sh%2F&from=templates&project-name=Monorepo+with+Turborepo&repository-name=monorepo-turborepo&repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fturborepo%2Ftree%2Fmain%2Fexamples%2Fbasic&root-directory=apps%2Fdocs&skippable-integrations=1&teamSlug=vercel&utm_source=create-turbo"
+            href="https://docs.storacha.network"
             target="_blank"
             rel="noopener noreferrer"
           >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <polyline points="10 9 9 9 8 9" />
+            </svg>
+            Storacha Docs
           </a>
           <a
-            href="https://turborepo.com/docs?utm_source"
+            href="https://docs.chain.link/chainlink-functions"
             target="_blank"
             rel="noopener noreferrer"
-            className={styles.secondary}
           >
-            Read our docs
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
+            Chainlink Functions
+          </a>
+          <a
+            href="https://github.com"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
+            </svg>
+            GitHub
           </a>
         </div>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://vercel.com/templates?search=turborepo&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://turborepo.com?utm_source=create-turbo"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to turborepo.com →
-        </a>
       </footer>
     </div>
   );
