@@ -10,6 +10,7 @@
     "prepare": "husky"
   },
   "devDependencies": {
+    "@storacha-chainlink/eslint-config": "workspace:*",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "prettier": "^3.6.2",

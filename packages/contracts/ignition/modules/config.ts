@@ -1,0 +1,14 @@
+import { ethers } from "hardhat";
+
+export const FUNCTIONS_ROUTER_CONFIG: Record<number, string> = {
+  11155111: "0xb83E47C2bC239B3bf370bc41e1459A34b41238D0",
+  421614: "0x234a5fb5Bd614a7AA2FfAB244D603abFA0Ac5C5C",
+  1337: ethers.ZeroAddress,
+};
+
+export const DON_ID_CONFIG: Record<number, string> = {
+  11155111:
+    "0x66756e2d657468657265756d2d7365706f6c69612d3100000000000000000000",
+  421614: "0x66756e2d617262697472756d2d7365706f6c69612d3100000000000000000000",
+  1337: ethers.ZeroHash,
+};
