@@ -35,6 +35,7 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
     // State variables
     uint256 private _bountyIdCounter;
     mapping(uint256 => Bounty) public bounties;
+    address public dataRegistry;
 
     // Minimum reward to prevent spam (0.01 ETH)
     uint256 public constant MIN_REWARD = 0.01 ether;
@@ -73,7 +74,20 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
     error EscrowManagerNotSet();
     error EscrowDepositFailed();
 
+    modifier onlyDataRegistry() {
+        if (msg.sender != dataRegistry) revert Unauthorized();
+        _;
+    }
+
     constructor() Ownable(msg.sender) {}
+
+    /**
+     * @notice Set the DataRegistry address
+     * @param _dataRegistry Address of the DataRegistry contract
+     */
+    function setDataRegistry(address _dataRegistry) external onlyOwner {
+        dataRegistry = _dataRegistry;
+    }
 
     /**
      * @notice Create a new bounty
@@ -162,7 +176,7 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
         uint256 bountyId,
         address winner,
         string calldata cid
-    ) external {
+    ) external onlyDataRegistry {
         Bounty storage bounty = bounties[bountyId];
 
         if (bounty.creator == address(0)) revert BountyNotFound();
@@ -177,7 +191,7 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
      * @notice Increment submission count
      * @param bountyId The ID of the bounty
      */
-    function incrementSubmissions(uint256 bountyId) external {
+    function incrementSubmissions(uint256 bountyId) external onlyDataRegistry {
         Bounty storage bounty = bounties[bountyId];
 
         if (bounty.creator == address(0)) revert BountyNotFound();
