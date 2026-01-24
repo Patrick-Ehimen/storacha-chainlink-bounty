@@ -1,3 +1,4 @@
+import Link from "next/link";
 import styles from "./page.module.css";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { ConnectWallet } from "./components/ConnectWallet";
@@ -28,7 +29,7 @@ export default function Home() {
           </p>
 
           <div className={styles.ctas}>
-            <a href="#" className={styles.primary}>
+            <Link href="/explore" className={styles.primary}>
               <svg
                 width="20"
                 height="20"
@@ -44,7 +45,7 @@ export default function Home() {
                 <path d="M2 12l10 5 10-5" />
               </svg>
               Explore Bounties
-            </a>
+            </Link>
             <a href="#" className={styles.secondary}>
               Create Bounty
             </a>
