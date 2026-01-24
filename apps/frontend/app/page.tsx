@@ -1,6 +1,7 @@
 import styles from "./page.module.css";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { ConnectWallet } from "./components/ConnectWallet";
+import Link from "next/link";
 
 export default function Home() {
   return (
@@ -45,9 +46,9 @@ export default function Home() {
               </svg>
               Explore Bounties
             </a>
-            <a href="#" className={styles.secondary}>
+            <Link href="/create-bounty" className={styles.secondary}>
               Create Bounty
-            </a>
+            </Link>
           </div>
         </section>
 
