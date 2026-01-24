@@ -6,15 +6,28 @@ describe("DataRegistry", function () {
   async function deployFixture() {
     const [owner, creator, contributor, functionsConsumer] = await hre.ethers.getSigners();
 
+    // Deploy EscrowManager first
+    const EscrowManager = await hre.ethers.getContractFactory("EscrowManager");
+    const escrowManager = await EscrowManager.deploy();
+
+    // Deploy BountyRegistry
     const BountyRegistry = await hre.ethers.getContractFactory("BountyRegistry");
     const bountyRegistry = await BountyRegistry.deploy();
 
+    // Deploy DataRegistry
     const DataRegistry = await hre.ethers.getContractFactory("DataRegistry");
     const dataRegistry = await DataRegistry.deploy(
       await bountyRegistry.getAddress(),
       functionsConsumer.address
     );
 
+    // Set up all contract references
+    await escrowManager.setBountyRegistry(await bountyRegistry.getAddress());
+    await escrowManager.setDataRegistry(await dataRegistry.getAddress());
+    await bountyRegistry.setEscrowManager(await escrowManager.getAddress());
+    await dataRegistry.setEscrowManager(await escrowManager.getAddress());
+
+    // Create a test bounty
     const deadline = (await time.latest()) + 86400;
     await bountyRegistry.connect(creator).createBounty(
       "Test Bounty",
@@ -25,14 +38,15 @@ describe("DataRegistry", function () {
       { value: hre.ethers.parseEther("0.1") }
     );
 
-    return { dataRegistry, bountyRegistry, owner, creator, contributor, functionsConsumer };
+    return { dataRegistry, bountyRegistry, escrowManager, owner, creator, contributor, functionsConsumer };
   }
 
   describe("Deployment", function () {
     it("Should set correct addresses", async function () {
-      const { dataRegistry, bountyRegistry, functionsConsumer } = await loadFixture(deployFixture);
+      const { dataRegistry, bountyRegistry, escrowManager, functionsConsumer } = await loadFixture(deployFixture);
       expect(await dataRegistry.bountyRegistry()).to.equal(await bountyRegistry.getAddress());
       expect(await dataRegistry.functionsConsumer()).to.equal(functionsConsumer.address);
+      expect(await dataRegistry.escrowManager()).to.equal(await escrowManager.getAddress());
     });
   });
 
@@ -84,29 +98,36 @@ describe("DataRegistry", function () {
   });
 
   describe("Handle Verification Result", function () {
-    it("Should handle verified submission", async function () {
-      const { dataRegistry, bountyRegistry, contributor, functionsConsumer } = await loadFixture(deployFixture);
+    it("Should handle verified submission and release payment via EscrowManager", async function () {
+      const { dataRegistry, bountyRegistry, escrowManager, contributor, functionsConsumer } = await loadFixture(deployFixture);
+      const reward = hre.ethers.parseEther("0.1");
 
       await dataRegistry.connect(contributor).submitData(0, "QmDataCID", "metadata");
 
-      await hre.ethers.provider.send("hardhat_setBalance", [
-        await dataRegistry.getAddress(),
-        "0x" + hre.ethers.parseEther("1").toString(16)
-      ]);
+      const contributorBalanceBefore = await hre.ethers.provider.getBalance(contributor.address);
 
       await expect(
         dataRegistry.connect(functionsConsumer).handleVerificationResult(0, true, "0x")
       ).to.emit(dataRegistry, "SubmissionVerified")
         .withArgs(0, 0, contributor.address, true)
         .and.to.emit(dataRegistry, "PaymentReleased")
-        .and.to.emit(bountyRegistry, "BountyCompleted");
+        .withArgs(0, contributor.address, reward)
+        .and.to.emit(bountyRegistry, "BountyCompleted")
+        .and.to.emit(escrowManager, "FundsReleased")
+        .withArgs(0, contributor.address, reward);
+
+      const contributorBalanceAfter = await hre.ethers.provider.getBalance(contributor.address);
+      expect(contributorBalanceAfter - contributorBalanceBefore).to.equal(reward);
 
       const submission = await dataRegistry.getSubmission(0);
       expect(submission.status).to.equal(2); // VERIFIED
+
+      // Verify escrow is released
+      expect(await escrowManager.isEscrowFunded(0)).to.be.false;
     });
 
-    it("Should handle rejected submission", async function () {
-      const { dataRegistry, contributor, functionsConsumer } = await loadFixture(deployFixture);
+    it("Should handle rejected submission without payment", async function () {
+      const { dataRegistry, escrowManager, contributor, functionsConsumer } = await loadFixture(deployFixture);
 
       await dataRegistry.connect(contributor).submitData(0, "QmDataCID", "metadata");
 
@@ -117,6 +138,9 @@ describe("DataRegistry", function () {
 
       const submission = await dataRegistry.getSubmission(0);
       expect(submission.status).to.equal(3); // REJECTED
+
+      // Escrow should still be funded (no payment released)
+      expect(await escrowManager.isEscrowFunded(0)).to.be.true;
     });
 
     it("Should revert if not called by FunctionsConsumer", async function () {
@@ -167,6 +191,25 @@ describe("DataRegistry", function () {
 
       await dataRegistry.connect(owner).setFunctionsConsumer(newAddress);
       expect(await dataRegistry.functionsConsumer()).to.equal(newAddress);
+    });
+
+    it("Should allow owner to set EscrowManager", async function () {
+      const { dataRegistry, owner } = await loadFixture(deployFixture);
+      const EscrowManager = await hre.ethers.getContractFactory("EscrowManager");
+      const newEscrowManager = await EscrowManager.deploy();
+
+      await expect(dataRegistry.connect(owner).setEscrowManager(await newEscrowManager.getAddress()))
+        .to.emit(dataRegistry, "EscrowManagerUpdated");
+
+      expect(await dataRegistry.escrowManager()).to.equal(await newEscrowManager.getAddress());
+    });
+
+    it("Should revert setting zero address for EscrowManager", async function () {
+      const { dataRegistry, owner } = await loadFixture(deployFixture);
+
+      await expect(
+        dataRegistry.connect(owner).setEscrowManager(hre.ethers.ZeroAddress)
+      ).to.be.revertedWithCustomError(dataRegistry, "EscrowManagerNotSet");
     });
   });
 });
