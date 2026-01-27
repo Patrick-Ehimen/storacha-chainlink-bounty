@@ -132,6 +132,29 @@ contract EscrowManager is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @notice Increase existing escrow amount
+     * @dev Called by BountyRegistry when reward is increased
+     * @param bountyId The ID of the bounty
+     * @param depositor The address of the depositor
+     */
+    function increaseDeposit(
+        uint256 bountyId,
+        address depositor
+    ) external payable onlyBountyRegistry {
+        if (msg.value == 0) revert InvalidAmount();
+        
+        Escrow storage escrow = escrows[bountyId];
+        if (escrow.status != EscrowStatus.FUNDED) {
+            revert InvalidEscrowStatus();
+        }
+
+        escrow.amount += msg.value;
+        totalDeposits += msg.value;
+
+        emit FundsDeposited(bountyId, depositor, msg.value);
+    }
+
+    /**
      * @notice Release escrowed funds to a verified contributor
      * @dev Called by DataRegistry when a submission is verified
      * @param bountyId The ID of the bounty

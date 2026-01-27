@@ -30,6 +30,8 @@
     "@types/node": "^22.15.3",
     "chai": "^4.5.0",
     "ethers": "^6.14.0",
+    "eslint": "^9.39.1",
+    "@storacha-chainlink/eslint-config": "workspace:*",
     "hardhat": "^2.27.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
