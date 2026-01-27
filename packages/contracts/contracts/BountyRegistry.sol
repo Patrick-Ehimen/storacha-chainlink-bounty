@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "./EscrowManager.sol";
 
 /**
  * @title BountyRegistry
@@ -38,6 +39,9 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
     // Minimum reward to prevent spam (0.01 ETH)
     uint256 public constant MIN_REWARD = 0.01 ether;
 
+    // EscrowManager for secure fund management
+    EscrowManager public escrowManager;
+
     // Events
     event BountyCreated(
         uint256 indexed id,
@@ -57,6 +61,8 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
 
     event SubmissionIncremented(uint256 indexed bountyId, uint256 newCount);
 
+    event EscrowManagerUpdated(address indexed oldAddress, address indexed newAddress);
+
     // Custom errors
     error InsufficientReward();
     error InvalidDeadline();
@@ -64,6 +70,8 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
     error Unauthorized();
     error InvalidStatus();
     error MaxSubmissionsReached();
+    error EscrowManagerNotSet();
+    error EscrowDepositFailed();
 
     constructor() Ownable(msg.sender) {}
 
@@ -86,6 +94,7 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
         if (msg.value < MIN_REWARD) revert InsufficientReward();
         if (deadline <= block.timestamp) revert InvalidDeadline();
         if (maxSubmissions == 0) revert InvalidStatus();
+        if (address(escrowManager) == address(0)) revert EscrowManagerNotSet();
 
         uint256 bountyId = _bountyIdCounter++;
 
@@ -103,13 +112,16 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
             createdAt: block.timestamp
         });
 
+        // Deposit funds into EscrowManager
+        escrowManager.deposit{value: msg.value}(bountyId, msg.sender);
+
         emit BountyCreated(bountyId, msg.sender, msg.value, schemaUri, deadline);
 
         return bountyId;
     }
 
     /**
-     * @notice Cancel bounty and refund creator
+     * @notice Cancel bounty and refund creator via EscrowManager
      * @param bountyId The ID of the bounty to cancel
      */
     function cancelBounty(uint256 bountyId) external nonReentrant {
@@ -121,11 +133,23 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
 
         bounty.status = BountyStatus.CANCELLED;
 
-        // Refund creator
-        (bool success, ) = bounty.creator.call{value: bounty.reward}("");
-        require(success, "Refund failed");
+        // Refund creator via EscrowManager
+        escrowManager.refund(bountyId);
 
         emit BountyCancelled(bountyId, bounty.creator);
+    }
+
+    /**
+     * @notice Set the EscrowManager contract address
+     * @param _escrowManager Address of the EscrowManager contract
+     */
+    function setEscrowManager(address _escrowManager) external onlyOwner {
+        if (_escrowManager == address(0)) revert BountyNotFound();
+
+        address oldAddress = address(escrowManager);
+        escrowManager = EscrowManager(payable(_escrowManager));
+
+        emit EscrowManagerUpdated(oldAddress, _escrowManager);
     }
 
     /**

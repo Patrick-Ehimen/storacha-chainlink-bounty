@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./BountyRegistry.sol";
+import "./EscrowManager.sol";
 
 /**
  * @title DataRegistry
@@ -37,6 +38,7 @@ contract DataRegistry is Ownable, ReentrancyGuard {
     // Contract references
     BountyRegistry public bountyRegistry;
     address public functionsConsumer;
+    EscrowManager public escrowManager;
 
     // Events
     event DataSubmitted(
@@ -65,12 +67,15 @@ contract DataRegistry is Ownable, ReentrancyGuard {
         uint256 amount
     );
 
+    event EscrowManagerUpdated(address indexed oldAddress, address indexed newAddress);
+
     // Custom errors
     error BountyNotActive();
     error InvalidCID();
     error SubmissionNotFound();
     error Unauthorized();
     error FunctionsConsumerNotSet();
+    error EscrowManagerNotSet();
     error InvalidStatus();
     error PaymentFailed();
 
@@ -138,10 +143,6 @@ contract DataRegistry is Ownable, ReentrancyGuard {
         Submission storage submission = submissions[submissionId];
         submission.status = SubmissionStatus.VERIFYING;
 
-        BountyRegistry.Bounty memory bounty = bountyRegistry.getBounty(
-            submission.bountyId
-        );
-
         emit VerificationRequested(
             submissionId,
             submission.bountyId,
@@ -178,11 +179,6 @@ contract DataRegistry is Ownable, ReentrancyGuard {
         if (verified) {
             submission.status = SubmissionStatus.VERIFIED;
 
-            // Get bounty details
-            BountyRegistry.Bounty memory bounty = bountyRegistry.getBounty(
-                submission.bountyId
-            );
-
             // Mark bounty as completed
             bountyRegistry.completeBounty(
                 submission.bountyId,
@@ -190,8 +186,8 @@ contract DataRegistry is Ownable, ReentrancyGuard {
                 submission.cid
             );
 
-            // Release payment to contributor
-            _releasePayment(submissionId, bounty.reward);
+            // Release payment to contributor via EscrowManager
+            _releasePayment(submissionId, submission.bountyId);
         } else {
             submission.status = SubmissionStatus.REJECTED;
         }
@@ -205,19 +201,20 @@ contract DataRegistry is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Internal function to release payment to contributor
+     * @notice Internal function to release payment to contributor via EscrowManager
      * @param submissionId The ID of the submission
-     * @param amount Amount to pay
+     * @param bountyId The ID of the bounty (needed for escrow lookup)
      */
-    function _releasePayment(uint256 submissionId, uint256 amount) internal {
+    function _releasePayment(uint256 submissionId, uint256 bountyId) internal {
+        if (address(escrowManager) == address(0)) revert EscrowManagerNotSet();
+
         Submission storage submission = submissions[submissionId];
 
-        // Transfer reward from BountyRegistry (it holds the funds)
-        // In production, this would require BountyRegistry to have a withdrawal function
-        // For now, we assume funds are held and transferred separately
+        // Get the escrow amount before release
+        uint256 amount = escrowManager.getEscrowAmount(bountyId);
 
-        (bool success, ) = submission.contributor.call{value: amount}("");
-        if (!success) revert PaymentFailed();
+        // Release funds from EscrowManager to contributor
+        escrowManager.release(bountyId, submission.contributor);
 
         emit PaymentReleased(submissionId, submission.contributor, amount);
     }
@@ -228,6 +225,19 @@ contract DataRegistry is Ownable, ReentrancyGuard {
      */
     function setFunctionsConsumer(address _functionsConsumer) external onlyOwner {
         functionsConsumer = _functionsConsumer;
+    }
+
+    /**
+     * @notice Set the EscrowManager contract address
+     * @param _escrowManager Address of the EscrowManager contract
+     */
+    function setEscrowManager(address _escrowManager) external onlyOwner {
+        if (_escrowManager == address(0)) revert EscrowManagerNotSet();
+
+        address oldAddress = address(escrowManager);
+        escrowManager = EscrowManager(payable(_escrowManager));
+
+        emit EscrowManagerUpdated(oldAddress, _escrowManager);
     }
 
     /**
@@ -291,6 +301,4 @@ contract DataRegistry is Ownable, ReentrancyGuard {
         return _submissionIdCounter;
     }
 
-    // Receive function to accept ETH for payments
-    receive() external payable {}
 }
