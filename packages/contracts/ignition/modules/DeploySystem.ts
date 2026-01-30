@@ -10,10 +10,19 @@ const DeploySystemModule = buildModule("DeploySystem", (m) => {
   const { dataRegistry } = m.useModule(DataRegistryModule);
   const { escrowManager } = m.useModule(EscrowManagerModule);
 
+  // Wire up FunctionsConsumer
   m.call(functionsConsumer, "updateDataRegistry", [dataRegistry]);
 
+  // Wire up EscrowManager (bidirectional references)
   m.call(escrowManager, "setBountyRegistry", [bountyRegistry]);
   m.call(escrowManager, "setDataRegistry", [dataRegistry]);
+
+  // Wire up BountyRegistry
+  m.call(bountyRegistry, "setEscrowManager", [escrowManager]);
+  m.call(bountyRegistry, "setDataRegistry", [dataRegistry]);
+
+  // Wire up DataRegistry
+  m.call(dataRegistry, "setEscrowManager", [escrowManager]);
 
   return {
     bountyRegistry,
