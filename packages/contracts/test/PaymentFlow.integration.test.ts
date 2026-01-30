@@ -1,4 +1,7 @@
-import { loadFixture, time } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import {
+  loadFixture,
+  time,
+} from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import hre from "hardhat";
 
@@ -10,20 +13,26 @@ import hre from "hardhat";
  */
 describe("Payment Flow Integration", function () {
   async function deployFullSystemFixture() {
-    const [owner, bountyCreator, contributor1, contributor2, functionsConsumer] =
-      await hre.ethers.getSigners();
+    const [
+      owner,
+      bountyCreator,
+      contributor1,
+      contributor2,
+      functionsConsumer,
+    ] = await hre.ethers.getSigners();
 
     // Deploy all contracts
     const EscrowManager = await hre.ethers.getContractFactory("EscrowManager");
     const escrowManager = await EscrowManager.deploy();
 
-    const BountyRegistry = await hre.ethers.getContractFactory("BountyRegistry");
+    const BountyRegistry =
+      await hre.ethers.getContractFactory("BountyRegistry");
     const bountyRegistry = await BountyRegistry.deploy();
 
     const DataRegistry = await hre.ethers.getContractFactory("DataRegistry");
     const dataRegistry = await DataRegistry.deploy(
       await bountyRegistry.getAddress(),
-      functionsConsumer.address
+      functionsConsumer.address,
     );
 
     // Set up all contract references (critical for payment flow)
@@ -31,6 +40,9 @@ describe("Payment Flow Integration", function () {
     await escrowManager.setDataRegistry(await dataRegistry.getAddress());
     await bountyRegistry.setEscrowManager(await escrowManager.getAddress());
     await dataRegistry.setEscrowManager(await escrowManager.getAddress());
+
+    // Wire up access control: allow DataRegistry to call BountyRegistry
+    await bountyRegistry.setDataRegistry(await dataRegistry.getAddress());
 
     return {
       escrowManager,
@@ -59,34 +71,52 @@ describe("Payment Flow Integration", function () {
       const deadline = (await time.latest()) + 86400;
 
       // Step 1: Creator creates bounty with reward
-      const creatorBalanceBefore = await hre.ethers.provider.getBalance(bountyCreator.address);
+      const creatorBalanceBefore = await hre.ethers.provider.getBalance(
+        bountyCreator.address,
+      );
 
       const createTx = await bountyRegistry
         .connect(bountyCreator)
-        .createBounty("Test Bounty", "Description", "QmSchema", deadline, 5, { value: reward });
+        .createBounty("Test Bounty", "Description", "QmSchema", deadline, 5, {
+          value: reward,
+        });
       const createReceipt = await createTx.wait();
       const createGas = createReceipt!.gasUsed * createReceipt!.gasPrice;
 
       // Verify funds moved from creator to escrow
-      const creatorBalanceAfter = await hre.ethers.provider.getBalance(bountyCreator.address);
-      expect(creatorBalanceBefore - creatorBalanceAfter - createGas).to.equal(reward);
+      const creatorBalanceAfter = await hre.ethers.provider.getBalance(
+        bountyCreator.address,
+      );
+      expect(creatorBalanceBefore - creatorBalanceAfter - createGas).to.equal(
+        reward,
+      );
       expect(await escrowManager.getTotalBalance()).to.equal(reward);
       expect(await escrowManager.isEscrowFunded(0)).to.be.true;
 
       // Step 2: Contributor submits data
-      await dataRegistry.connect(contributor1).submitData(0, "QmDataCID", "metadata");
+      await dataRegistry
+        .connect(contributor1)
+        .submitData(0, "QmDataCID", "metadata");
 
       const submission = await dataRegistry.getSubmission(0);
       expect(submission.status).to.equal(1); // VERIFYING
 
       // Step 3: FunctionsConsumer reports verification success
-      const contributorBalanceBefore = await hre.ethers.provider.getBalance(contributor1.address);
+      const contributorBalanceBefore = await hre.ethers.provider.getBalance(
+        contributor1.address,
+      );
 
-      await dataRegistry.connect(functionsConsumer).handleVerificationResult(0, true, "0x");
+      await dataRegistry
+        .connect(functionsConsumer)
+        .handleVerificationResult(0, true, "0x");
 
       // Step 4: Verify payment was released to contributor
-      const contributorBalanceAfter = await hre.ethers.provider.getBalance(contributor1.address);
-      expect(contributorBalanceAfter - contributorBalanceBefore).to.equal(reward);
+      const contributorBalanceAfter = await hre.ethers.provider.getBalance(
+        contributor1.address,
+      );
+      expect(contributorBalanceAfter - contributorBalanceBefore).to.equal(
+        reward,
+      );
 
       // Verify escrow is released
       expect(await escrowManager.isEscrowFunded(0)).to.be.false;
@@ -110,18 +140,26 @@ describe("Payment Flow Integration", function () {
       // Create bounty
       await bountyRegistry
         .connect(bountyCreator)
-        .createBounty("Cancelled Bounty", "Desc", "QmSchema", deadline, 5, { value: reward });
+        .createBounty("Cancelled Bounty", "Desc", "QmSchema", deadline, 5, {
+          value: reward,
+        });
 
       expect(await escrowManager.getTotalBalance()).to.equal(reward);
 
       // Cancel bounty
-      const balanceBefore = await hre.ethers.provider.getBalance(bountyCreator.address);
-      const cancelTx = await bountyRegistry.connect(bountyCreator).cancelBounty(0);
+      const balanceBefore = await hre.ethers.provider.getBalance(
+        bountyCreator.address,
+      );
+      const cancelTx = await bountyRegistry
+        .connect(bountyCreator)
+        .cancelBounty(0);
       const cancelReceipt = await cancelTx.wait();
       const cancelGas = cancelReceipt!.gasUsed * cancelReceipt!.gasPrice;
 
       // Verify refund
-      const balanceAfter = await hre.ethers.provider.getBalance(bountyCreator.address);
+      const balanceAfter = await hre.ethers.provider.getBalance(
+        bountyCreator.address,
+      );
       expect(balanceAfter + cancelGas - balanceBefore).to.equal(reward);
 
       // Verify escrow is empty
@@ -148,27 +186,39 @@ describe("Payment Flow Integration", function () {
       // Create 3 bounties
       await bountyRegistry
         .connect(bountyCreator)
-        .createBounty("Bounty 1", "Desc", "QmSchema", deadline, 5, { value: reward1 });
+        .createBounty("Bounty 1", "Desc", "QmSchema", deadline, 5, {
+          value: reward1,
+        });
       await bountyRegistry
         .connect(bountyCreator)
-        .createBounty("Bounty 2", "Desc", "QmSchema", deadline, 5, { value: reward2 });
+        .createBounty("Bounty 2", "Desc", "QmSchema", deadline, 5, {
+          value: reward2,
+        });
       await bountyRegistry
         .connect(bountyCreator)
-        .createBounty("Bounty 3", "Desc", "QmSchema", deadline, 5, { value: reward3 });
+        .createBounty("Bounty 3", "Desc", "QmSchema", deadline, 5, {
+          value: reward3,
+        });
 
       // Verify total escrow
-      expect(await escrowManager.getTotalBalance()).to.equal(reward1 + reward2 + reward3);
+      expect(await escrowManager.getTotalBalance()).to.equal(
+        reward1 + reward2 + reward3,
+      );
 
       // Submit and verify data for bounty 0
       await dataRegistry.connect(contributor1).submitData(0, "QmData1", "meta");
-      await dataRegistry.connect(functionsConsumer).handleVerificationResult(0, true, "0x");
+      await dataRegistry
+        .connect(functionsConsumer)
+        .handleVerificationResult(0, true, "0x");
 
       // Cancel bounty 1
       await bountyRegistry.connect(bountyCreator).cancelBounty(1);
 
       // Submit data for bounty 2, reject it
       await dataRegistry.connect(contributor2).submitData(2, "QmData2", "meta");
-      await dataRegistry.connect(functionsConsumer).handleVerificationResult(1, false, "0x");
+      await dataRegistry
+        .connect(functionsConsumer)
+        .handleVerificationResult(1, false, "0x");
 
       // Verify final state
       expect(await escrowManager.isEscrowFunded(0)).to.be.false; // Released
@@ -201,18 +251,28 @@ describe("Payment Flow Integration", function () {
       // Create bounty
       await bountyRegistry
         .connect(bountyCreator)
-        .createBounty("Test Bounty", "Desc", "QmSchema", deadline, 5, { value: reward });
+        .createBounty("Test Bounty", "Desc", "QmSchema", deadline, 5, {
+          value: reward,
+        });
 
       // Submit data
-      await dataRegistry.connect(contributor1).submitData(0, "QmBadData", "meta");
+      await dataRegistry
+        .connect(contributor1)
+        .submitData(0, "QmBadData", "meta");
 
-      const contributorBalanceBefore = await hre.ethers.provider.getBalance(contributor1.address);
+      const contributorBalanceBefore = await hre.ethers.provider.getBalance(
+        contributor1.address,
+      );
 
       // Reject submission
-      await dataRegistry.connect(functionsConsumer).handleVerificationResult(0, false, "0x");
+      await dataRegistry
+        .connect(functionsConsumer)
+        .handleVerificationResult(0, false, "0x");
 
       // Verify no payment was made
-      const contributorBalanceAfter = await hre.ethers.provider.getBalance(contributor1.address);
+      const contributorBalanceAfter = await hre.ethers.provider.getBalance(
+        contributor1.address,
+      );
       expect(contributorBalanceAfter).to.equal(contributorBalanceBefore);
 
       // Funds should still be in escrow
@@ -227,28 +287,36 @@ describe("Payment Flow Integration", function () {
 
   describe("Reentrancy Protection", function () {
     it("Should have reentrancy protection on BountyRegistry.cancelBounty", async function () {
-      const { bountyRegistry, bountyCreator } = await loadFixture(deployFullSystemFixture);
+      const { bountyRegistry, bountyCreator } = await loadFixture(
+        deployFullSystemFixture,
+      );
 
       const deadline = (await time.latest()) + 86400;
       const reward = hre.ethers.parseEther("0.1");
 
       await bountyRegistry
         .connect(bountyCreator)
-        .createBounty("Test", "Desc", "QmSchema", deadline, 5, { value: reward });
+        .createBounty("Test", "Desc", "QmSchema", deadline, 5, {
+          value: reward,
+        });
 
       // Cancel should succeed (nonReentrant)
       await bountyRegistry.connect(bountyCreator).cancelBounty(0);
 
       // Double cancel should fail (status check, not reentrancy)
-      await expect(bountyRegistry.connect(bountyCreator).cancelBounty(0)).to.be.revertedWithCustomError(
-        bountyRegistry,
-        "InvalidStatus"
-      );
+      await expect(
+        bountyRegistry.connect(bountyCreator).cancelBounty(0),
+      ).to.be.revertedWithCustomError(bountyRegistry, "InvalidStatus");
     });
 
     it("Should have reentrancy protection on DataRegistry.handleVerificationResult", async function () {
-      const { bountyRegistry, dataRegistry, bountyCreator, contributor1, functionsConsumer } =
-        await loadFixture(deployFullSystemFixture);
+      const {
+        bountyRegistry,
+        dataRegistry,
+        bountyCreator,
+        contributor1,
+        functionsConsumer,
+      } = await loadFixture(deployFullSystemFixture);
 
       const deadline = (await time.latest()) + 86400;
 
@@ -261,23 +329,29 @@ describe("Payment Flow Integration", function () {
       await dataRegistry.connect(contributor1).submitData(0, "QmData", "meta");
 
       // First verification should succeed
-      await dataRegistry.connect(functionsConsumer).handleVerificationResult(0, true, "0x");
+      await dataRegistry
+        .connect(functionsConsumer)
+        .handleVerificationResult(0, true, "0x");
 
       // Second call should fail (status check)
       await expect(
-        dataRegistry.connect(functionsConsumer).handleVerificationResult(0, true, "0x")
+        dataRegistry
+          .connect(functionsConsumer)
+          .handleVerificationResult(0, true, "0x"),
       ).to.be.revertedWithCustomError(dataRegistry, "InvalidStatus");
     });
   });
 
   describe("Access Control", function () {
     it("Should only allow BountyRegistry to deposit to EscrowManager", async function () {
-      const { escrowManager, contributor1 } = await loadFixture(deployFullSystemFixture);
+      const { escrowManager, contributor1 } = await loadFixture(
+        deployFullSystemFixture,
+      );
 
       await expect(
         escrowManager.connect(contributor1).deposit(99, contributor1.address, {
           value: hre.ethers.parseEther("1.0"),
-        })
+        }),
       ).to.be.revertedWithCustomError(escrowManager, "Unauthorized");
     });
 
@@ -294,7 +368,7 @@ describe("Payment Flow Integration", function () {
         });
 
       await expect(
-        escrowManager.connect(contributor1).release(0, contributor1.address)
+        escrowManager.connect(contributor1).release(0, contributor1.address),
       ).to.be.revertedWithCustomError(escrowManager, "Unauthorized");
     });
 
@@ -311,7 +385,7 @@ describe("Payment Flow Integration", function () {
         });
 
       await expect(
-        escrowManager.connect(contributor1).refund(0)
+        escrowManager.connect(contributor1).refund(0),
       ).to.be.revertedWithCustomError(escrowManager, "Unauthorized");
     });
   });

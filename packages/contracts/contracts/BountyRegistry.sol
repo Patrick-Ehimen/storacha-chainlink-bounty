@@ -35,6 +35,7 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
     // State variables
     uint256 private _bountyIdCounter;
     mapping(uint256 => Bounty) public bounties;
+    address public dataRegistry;
 
     // Minimum reward to prevent spam (0.01 ETH)
     uint256 public constant MIN_REWARD = 0.01 ether;
@@ -63,6 +64,8 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
 
     event EscrowManagerUpdated(address indexed oldAddress, address indexed newAddress);
 
+    event DataRegistryUpdated(address indexed previousRegistry, address indexed newRegistry);
+
     // Custom errors
     error InsufficientReward();
     error InvalidDeadline();
@@ -72,8 +75,27 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
     error MaxSubmissionsReached();
     error EscrowManagerNotSet();
     error EscrowDepositFailed();
+    error DataRegistryNotSet();
+    error InvalidAddress();
+
+    modifier onlyDataRegistry() {
+        if (dataRegistry == address(0)) revert DataRegistryNotSet();
+        if (msg.sender != dataRegistry) revert Unauthorized();
+        _;
+    }
 
     constructor() Ownable(msg.sender) {}
+
+    /**
+     * @notice Set the DataRegistry address
+     * @param _dataRegistry Address of the DataRegistry contract
+     */
+    function setDataRegistry(address _dataRegistry) external onlyOwner {
+        if (_dataRegistry == address(0)) revert InvalidAddress();
+        address previousRegistry = dataRegistry;
+        dataRegistry = _dataRegistry;
+        emit DataRegistryUpdated(previousRegistry, _dataRegistry);
+    }
 
     /**
      * @notice Create a new bounty
@@ -162,7 +184,7 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
         uint256 bountyId,
         address winner,
         string calldata cid
-    ) external {
+    ) external onlyDataRegistry {
         Bounty storage bounty = bounties[bountyId];
 
         if (bounty.creator == address(0)) revert BountyNotFound();
@@ -177,7 +199,7 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
      * @notice Increment submission count
      * @param bountyId The ID of the bounty
      */
-    function incrementSubmissions(uint256 bountyId) external {
+    function incrementSubmissions(uint256 bountyId) external onlyDataRegistry {
         Bounty storage bounty = bounties[bountyId];
 
         if (bounty.creator == address(0)) revert BountyNotFound();
