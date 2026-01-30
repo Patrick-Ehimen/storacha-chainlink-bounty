@@ -64,6 +64,8 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
 
     event EscrowManagerUpdated(address indexed oldAddress, address indexed newAddress);
 
+    event DataRegistryUpdated(address indexed previousRegistry, address indexed newRegistry);
+
     // Custom errors
     error InsufficientReward();
     error InvalidDeadline();
@@ -73,8 +75,11 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
     error MaxSubmissionsReached();
     error EscrowManagerNotSet();
     error EscrowDepositFailed();
+    error DataRegistryNotSet();
+    error InvalidAddress();
 
     modifier onlyDataRegistry() {
+        if (dataRegistry == address(0)) revert DataRegistryNotSet();
         if (msg.sender != dataRegistry) revert Unauthorized();
         _;
     }
@@ -86,7 +91,10 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
      * @param _dataRegistry Address of the DataRegistry contract
      */
     function setDataRegistry(address _dataRegistry) external onlyOwner {
+        if (_dataRegistry == address(0)) revert InvalidAddress();
+        address previousRegistry = dataRegistry;
         dataRegistry = _dataRegistry;
+        emit DataRegistryUpdated(previousRegistry, _dataRegistry);
     }
 
     /**

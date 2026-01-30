@@ -27,6 +27,9 @@ describe("DataRegistry", function () {
     await bountyRegistry.setEscrowManager(await escrowManager.getAddress());
     await dataRegistry.setEscrowManager(await escrowManager.getAddress());
 
+    // Wire up access control: allow DataRegistry to call BountyRegistry
+    await bountyRegistry.setDataRegistry(await dataRegistry.getAddress());
+
     // Create a test bounty
     const deadline = (await time.latest()) + 86400;
     await bountyRegistry.connect(creator).createBounty(

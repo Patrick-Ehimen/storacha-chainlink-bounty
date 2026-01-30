@@ -61,7 +61,7 @@ describe("BountyRegistry", function () {
     });
 
     it("Should allow owner to set EscrowManager", async function () {
-      const { registry, escrowManager, owner } = await loadFixture(deployFixture);
+      const { registry, escrowManager } = await loadFixture(deployFixture);
       expect(await registry.escrowManager()).to.equal(await escrowManager.getAddress());
     });
 
@@ -73,6 +73,37 @@ describe("BountyRegistry", function () {
       await expect(registry.setEscrowManager(await newEscrowManager.getAddress()))
         .to.emit(registry, "EscrowManagerUpdated")
         .withArgs(hre.ethers.ZeroAddress, await newEscrowManager.getAddress());
+    });
+  });
+
+  describe("setDataRegistry", function () {
+    it("Should emit DataRegistryUpdated event", async function () {
+      const { dataRegistrySigner } = await loadFixture(deployFixture);
+      const BountyRegistry =
+        await hre.ethers.getContractFactory("BountyRegistry");
+      const newRegistry = await BountyRegistry.deploy();
+
+      await expect(newRegistry.setDataRegistry(dataRegistrySigner.address))
+        .to.emit(newRegistry, "DataRegistryUpdated")
+        .withArgs(
+          "0x0000000000000000000000000000000000000000",
+          dataRegistrySigner.address,
+        );
+    });
+
+    it("Should revert when setting zero address", async function () {
+      const { registry } = await loadFixture(deployFixture);
+      await expect(
+        registry.setDataRegistry("0x0000000000000000000000000000000000000000"),
+      ).to.be.revertedWithCustomError(registry, "InvalidAddress");
+    });
+
+    it("Should revert when called by non-owner", async function () {
+      const { registry, user, dataRegistrySigner } =
+        await loadFixture(deployFixture);
+      await expect(
+        registry.connect(user).setDataRegistry(dataRegistrySigner.address),
+      ).to.be.revertedWithCustomError(registry, "OwnableUnauthorizedAccount");
     });
   });
 
@@ -235,6 +266,31 @@ describe("BountyRegistry", function () {
       await expect(
         registry.connect(user).completeBounty(0, user.address, "QmData"),
       ).to.be.revertedWithCustomError(registry, "Unauthorized");
+    });
+
+    it("Should revert if DataRegistry not set", async function () {
+      const [owner, creator, user] = await hre.ethers.getSigners();
+      const EscrowManager = await hre.ethers.getContractFactory("EscrowManager");
+      const escrowManager = await EscrowManager.deploy();
+      const BountyRegistry =
+        await hre.ethers.getContractFactory("BountyRegistry");
+      const newRegistry = await BountyRegistry.deploy();
+
+      // Set up EscrowManager but NOT DataRegistry
+      await escrowManager.setBountyRegistry(await newRegistry.getAddress());
+      await newRegistry.setEscrowManager(await escrowManager.getAddress());
+
+      const deadline = (await time.latest()) + 86400;
+
+      await newRegistry
+        .connect(creator)
+        .createBounty("Title", "Desc", "QmSchema", deadline, 10, {
+          value: hre.ethers.parseEther("0.1"),
+        });
+
+      await expect(
+        newRegistry.connect(user).completeBounty(0, user.address, "QmData"),
+      ).to.be.revertedWithCustomError(newRegistry, "DataRegistryNotSet");
     });
   });
 
