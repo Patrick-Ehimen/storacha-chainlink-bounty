@@ -4,20 +4,26 @@
  */
 
 import * as Client from "@storacha/client";
-import type {
-  AccountInfo,
-  AuthorizationStatus,
-  CID,
-  CreateSpaceOptions,
-  DelegationOptions,
-  DelegationResult,
-  DID,
-  Email,
-  FileInput,
-  SpaceInfo,
-  StorachaBountyClientConfig,
-  UploadOptions,
-  UploadResult,
+import {
+  DEFAULT_GATEWAYS,
+  IPFSFetchError,
+  type AccountInfo,
+  type AuthorizationStatus,
+  type CacheEntry,
+  type CID,
+  type CreateSpaceOptions,
+  type DelegationOptions,
+  type DelegationResult,
+  type DID,
+  type Email,
+  type FetchOptions,
+  type FetchRawResult,
+  type FetchResult,
+  type FileInput,
+  type SpaceInfo,
+  type StorachaBountyClientConfig,
+  type UploadOptions,
+  type UploadResult,
 } from "./types.js";
 
 /**
@@ -39,6 +45,7 @@ import type {
  */
 export class StorachaBountyClient {
   private client: Client.Client;
+  private cache: Map<string, CacheEntry> = new Map();
 
   private constructor(client: Client.Client) {
     this.client = client;
@@ -50,7 +57,7 @@ export class StorachaBountyClient {
    * @returns A new StorachaBountyClient instance
    */
   static async create(
-    _config?: StorachaBountyClientConfig
+    _config?: StorachaBountyClientConfig,
   ): Promise<StorachaBountyClient> {
     const client = await Client.create();
     return new StorachaBountyClient(client);
@@ -148,7 +155,7 @@ export class StorachaBountyClient {
       options?.name ?? "bounty-space",
       {
         account,
-      } as Parameters<typeof this.client.createSpace>[1]
+      } as Parameters<typeof this.client.createSpace>[1],
     );
 
     // Automatically set as current space
@@ -242,7 +249,7 @@ export class StorachaBountyClient {
    */
   async uploadFile(
     file: File | Blob | FileInput,
-    options?: UploadOptions
+    options?: UploadOptions,
   ): Promise<UploadResult> {
     this.ensureCurrentSpace();
 
@@ -292,7 +299,7 @@ export class StorachaBountyClient {
    */
   async uploadDirectory(
     files: File[],
-    options?: UploadOptions
+    options?: UploadOptions,
   ): Promise<UploadResult> {
     this.ensureCurrentSpace();
 
@@ -327,7 +334,10 @@ export class StorachaBountyClient {
    * });
    * ```
    */
-  async uploadJSON(data: unknown, filename = "data.json"): Promise<UploadResult> {
+  async uploadJSON(
+    data: unknown,
+    filename = "data.json",
+  ): Promise<UploadResult> {
     const json = JSON.stringify(data, null, 2);
     const blob = new Blob([json], { type: "application/json" });
     const file = new File([blob], filename, { type: "application/json" });
@@ -353,7 +363,7 @@ export class StorachaBountyClient {
    */
   async createDelegation(
     audienceDid: DID,
-    options: DelegationOptions
+    options: DelegationOptions,
   ): Promise<DelegationResult> {
     this.ensureCurrentSpace();
 
@@ -370,7 +380,7 @@ export class StorachaBountyClient {
       options.capabilities as Parameters<
         typeof this.client.createDelegation
       >[1],
-      { expiration }
+      { expiration },
     );
 
     const archive = await delegation.archive();
@@ -420,6 +430,232 @@ export class StorachaBountyClient {
     return `https://w3s.link/ipfs/${cidString}`;
   }
 
+  // ============ IPFS Data Retrieval ============
+
+  /**
+   * Fetch data from IPFS by CID with automatic gateway fallback
+   * @param cid - The CID to fetch
+   * @param options - Fetch options
+   * @returns The fetched data with metadata
+   *
+   * @example
+   * ```typescript
+   * // Fetch JSON data
+   * const result = await client.fetchByCID<{ name: string }>('bafybeig...');
+   * console.log(result.data.name);
+   *
+   * // Fetch with custom options
+   * const result = await client.fetchByCID('bafybeig...', {
+   *   timeout: 5000,
+   *   useCache: false
+   * });
+   * ```
+   */
+  async fetchByCID<T = unknown>(
+    cid: string | { toString(): string },
+    options?: FetchOptions,
+  ): Promise<FetchResult<T>> {
+    const cidString = typeof cid === "string" ? cid : cid.toString();
+    const {
+      timeout = 10000,
+      maxRetries = 2,
+      useCache = true,
+      cacheTTL = 300000,
+      gateways = [...DEFAULT_GATEWAYS],
+    } = options ?? {};
+
+    // Check cache first
+    if (useCache) {
+      const cached = this.getFromCache<T>(cidString);
+      if (cached) {
+        return {
+          data: cached.data,
+          cid: cidString,
+          gateway: cached.gateway,
+          contentType: cached.contentType,
+          cached: true,
+        };
+      }
+    }
+
+    const gatewayErrors = new Map<string, Error>();
+
+    for (const gateway of gateways) {
+      const url = `${gateway}${cidString}`;
+
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          const response = await this.fetchWithTimeout(url, timeout);
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const contentType =
+            response.headers.get("content-type") ?? "application/octet-stream";
+          let data: T;
+
+          if (contentType.includes("application/json")) {
+            data = (await response.json()) as T;
+          } else {
+            // For non-JSON, return as text and let caller handle parsing
+            data = (await response.text()) as unknown as T;
+          }
+
+          // Cache the result
+          if (useCache) {
+            this.setCache(cidString, {
+              data,
+              contentType,
+              gateway,
+              cachedAt: Date.now(),
+              ttl: cacheTTL,
+            });
+          }
+
+          return {
+            data,
+            cid: cidString,
+            gateway,
+            contentType,
+            cached: false,
+          };
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+
+          // Only store the last error for this gateway
+          if (attempt === maxRetries) {
+            gatewayErrors.set(gateway, new Error(errorMessage));
+          }
+
+          // Exponential backoff before retry
+          if (attempt < maxRetries) {
+            await this.delay(Math.pow(2, attempt) * 100);
+          }
+        }
+      }
+    }
+
+    throw new IPFSFetchError(cidString, gatewayErrors);
+  }
+
+  /**
+   * Fetch raw bytes from IPFS by CID with automatic gateway fallback
+   * @param cid - The CID to fetch
+   * @param options - Fetch options
+   * @returns The raw bytes with metadata
+   *
+   * @example
+   * ```typescript
+   * const result = await client.fetchRawByCID('bafybeig...');
+   * console.log(result.data); // Uint8Array
+   * ```
+   */
+  async fetchRawByCID(
+    cid: string | { toString(): string },
+    options?: FetchOptions,
+  ): Promise<FetchRawResult> {
+    const cidString = typeof cid === "string" ? cid : cid.toString();
+    const {
+      timeout = 10000,
+      maxRetries = 2,
+      useCache = true,
+      cacheTTL = 300000,
+      gateways = [...DEFAULT_GATEWAYS],
+    } = options ?? {};
+
+    // Check cache first
+    if (useCache) {
+      const cached = this.getFromCache<Uint8Array>(cidString);
+      if (cached && cached.data instanceof Uint8Array) {
+        return {
+          data: cached.data,
+          cid: cidString,
+          gateway: cached.gateway,
+          contentType: cached.contentType,
+          cached: true,
+        };
+      }
+    }
+
+    const gatewayErrors = new Map<string, Error>();
+
+    for (const gateway of gateways) {
+      const url = `${gateway}${cidString}`;
+
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          const response = await this.fetchWithTimeout(url, timeout);
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const contentType =
+            response.headers.get("content-type") ?? "application/octet-stream";
+          const arrayBuffer = await response.arrayBuffer();
+          const data = new Uint8Array(arrayBuffer);
+
+          // Cache the result
+          if (useCache) {
+            this.setCache(cidString, {
+              data,
+              contentType,
+              gateway,
+              cachedAt: Date.now(),
+              ttl: cacheTTL,
+            });
+          }
+
+          return {
+            data,
+            cid: cidString,
+            gateway,
+            contentType,
+            cached: false,
+          };
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+
+          if (attempt === maxRetries) {
+            gatewayErrors.set(gateway, new Error(errorMessage));
+          }
+
+          if (attempt < maxRetries) {
+            await this.delay(Math.pow(2, attempt) * 100);
+          }
+        }
+      }
+    }
+
+    throw new IPFSFetchError(cidString, gatewayErrors);
+  }
+
+  /**
+   * Clear the fetch cache
+   * @param cid - Optional CID to clear. If not provided, clears entire cache.
+   */
+  clearCache(cid?: string): void {
+    if (cid) {
+      this.cache.delete(cid);
+    } else {
+      this.cache.clear();
+    }
+  }
+
+  /**
+   * Get cache statistics
+   * @returns Cache size and entry count
+   */
+  getCacheStats(): { size: number; entries: string[] } {
+    return {
+      size: this.cache.size,
+      entries: Array.from(this.cache.keys()),
+    };
+  }
+
   // ============ Utility Methods ============
 
   /**
@@ -445,9 +681,58 @@ export class StorachaBountyClient {
   private ensureCurrentSpace(): void {
     if (!this.client.currentSpace()) {
       throw new Error(
-        "No current space set. Call createSpace() or setCurrentSpace() first."
+        "No current space set. Call createSpace() or setCurrentSpace() first.",
       );
     }
+  }
+
+  /**
+   * Fetch with timeout support
+   */
+  private async fetchWithTimeout(
+    url: string,
+    timeout: number,
+  ): Promise<Response> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      return response;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  /**
+   * Get an item from cache if it exists and is not expired
+   */
+  private getFromCache<T>(cid: string): CacheEntry<T> | undefined {
+    const entry = this.cache.get(cid) as CacheEntry<T> | undefined;
+    if (!entry) return undefined;
+
+    const now = Date.now();
+    if (now - entry.cachedAt > entry.ttl) {
+      // Entry expired, remove it
+      this.cache.delete(cid);
+      return undefined;
+    }
+
+    return entry;
+  }
+
+  /**
+   * Set an item in cache
+   */
+  private setCache<T>(cid: string, entry: CacheEntry<T>): void {
+    this.cache.set(cid, entry as CacheEntry);
+  }
+
+  /**
+   * Delay for a specified number of milliseconds
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
 
