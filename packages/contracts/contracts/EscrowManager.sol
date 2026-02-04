@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  * @notice Manages secure fund escrow for data bounties
  * @dev Handles deposits, withdrawals, and refunds with role-based access control
  */
-contract EscrowManager is Ownable, ReentrancyGuard {
+contract EscrowManager is AccessControl, ReentrancyGuard {
     // Escrow record for each bounty
     struct Escrow {
         uint256 bountyId;
@@ -33,9 +33,10 @@ contract EscrowManager is Ownable, ReentrancyGuard {
     uint256 public totalReleased;
     uint256 public totalRefunded;
 
-    // Authorized contracts
-    address public bountyRegistry;
-    address public dataRegistry;
+    // Roles
+    bytes32 public constant BOUNTY_REGISTRY_ROLE = keccak256("BOUNTY_REGISTRY_ROLE");
+    bytes32 public constant DATA_REGISTRY_ROLE = keccak256("DATA_REGISTRY_ROLE");
+    bytes32 public constant ESCROW_MANAGER_ROLE = keccak256("ESCROW_MANAGER_ROLE");
 
     // Events
     event FundsDeposited(
@@ -56,9 +57,6 @@ contract EscrowManager is Ownable, ReentrancyGuard {
         uint256 amount
     );
 
-    event BountyRegistryUpdated(address indexed oldAddress, address indexed newAddress);
-    event DataRegistryUpdated(address indexed oldAddress, address indexed newAddress);
-
     // Custom errors
     error Unauthorized();
     error InvalidAmount();
@@ -69,34 +67,8 @@ contract EscrowManager is Ownable, ReentrancyGuard {
     error TransferFailed();
     error InvalidAddress();
 
-    constructor() Ownable(msg.sender) {}
-
-    // ============ Modifiers ============
-
-    /**
-     * @notice Restricts function access to BountyRegistry contract
-     */
-    modifier onlyBountyRegistry() {
-        if (msg.sender != bountyRegistry) revert Unauthorized();
-        _;
-    }
-
-    /**
-     * @notice Restricts function access to DataRegistry contract
-     */
-    modifier onlyDataRegistry() {
-        if (msg.sender != dataRegistry) revert Unauthorized();
-        _;
-    }
-
-    /**
-     * @notice Restricts function access to authorized contracts (BountyRegistry or DataRegistry)
-     */
-    modifier onlyAuthorized() {
-        if (msg.sender != bountyRegistry && msg.sender != dataRegistry) {
-            revert Unauthorized();
-        }
-        _;
+    constructor() {
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     // ============ Core Functions ============
@@ -110,7 +82,7 @@ contract EscrowManager is Ownable, ReentrancyGuard {
     function deposit(
         uint256 bountyId,
         address depositor
-    ) external payable onlyBountyRegistry {
+    ) external payable onlyRole(BOUNTY_REGISTRY_ROLE) {
         if (msg.value == 0) revert InvalidAmount();
         if (depositor == address(0)) revert InvalidAddress();
         if (escrows[bountyId].status != EscrowStatus.NONE) {
@@ -140,7 +112,7 @@ contract EscrowManager is Ownable, ReentrancyGuard {
     function release(
         uint256 bountyId,
         address recipient
-    ) external nonReentrant onlyDataRegistry {
+    ) external nonReentrant onlyRole(DATA_REGISTRY_ROLE) {
         if (recipient == address(0)) revert InvalidAddress();
 
         Escrow storage escrow = escrows[bountyId];
@@ -166,7 +138,7 @@ contract EscrowManager is Ownable, ReentrancyGuard {
      * @dev Called by BountyRegistry when a bounty is cancelled
      * @param bountyId The ID of the bounty
      */
-    function refund(uint256 bountyId) external nonReentrant onlyBountyRegistry {
+    function refund(uint256 bountyId) external nonReentrant onlyRole(BOUNTY_REGISTRY_ROLE) {
         Escrow storage escrow = escrows[bountyId];
 
         if (escrow.status != EscrowStatus.FUNDED) {
@@ -196,7 +168,7 @@ contract EscrowManager is Ownable, ReentrancyGuard {
     function emergencyWithdraw(
         uint256 bountyId,
         address recipient
-    ) external nonReentrant onlyOwner {
+    ) external nonReentrant onlyRole(ESCROW_MANAGER_ROLE) {
         if (recipient == address(0)) revert InvalidAddress();
 
         Escrow storage escrow = escrows[bountyId];
@@ -215,34 +187,6 @@ contract EscrowManager is Ownable, ReentrancyGuard {
         if (!success) revert TransferFailed();
 
         emit FundsRefunded(bountyId, recipient, amount);
-    }
-
-    // ============ Admin Functions ============
-
-    /**
-     * @notice Set the BountyRegistry contract address
-     * @param _bountyRegistry Address of the BountyRegistry contract
-     */
-    function setBountyRegistry(address _bountyRegistry) external onlyOwner {
-        if (_bountyRegistry == address(0)) revert InvalidAddress();
-
-        address oldAddress = bountyRegistry;
-        bountyRegistry = _bountyRegistry;
-
-        emit BountyRegistryUpdated(oldAddress, _bountyRegistry);
-    }
-
-    /**
-     * @notice Set the DataRegistry contract address
-     * @param _dataRegistry Address of the DataRegistry contract
-     */
-    function setDataRegistry(address _dataRegistry) external onlyOwner {
-        if (_dataRegistry == address(0)) revert InvalidAddress();
-
-        address oldAddress = dataRegistry;
-        dataRegistry = _dataRegistry;
-
-        emit DataRegistryUpdated(oldAddress, _dataRegistry);
     }
 
     // ============ View Functions ============

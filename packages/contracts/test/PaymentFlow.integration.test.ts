@@ -21,6 +21,17 @@ describe("Payment Flow Integration", function () {
       functionsConsumer,
     ] = await hre.ethers.getSigners();
 
+    // Define roles
+    const DATA_REGISTRY_ROLE = hre.ethers.keccak256(
+      hre.ethers.toUtf8Bytes("DATA_REGISTRY_ROLE"),
+    );
+    const BOUNTY_REGISTRY_ROLE = hre.ethers.keccak256(
+      hre.ethers.toUtf8Bytes("BOUNTY_REGISTRY_ROLE"),
+    );
+    const FUNCTIONS_CONSUMER_ROLE = hre.ethers.keccak256(
+      hre.ethers.toUtf8Bytes("FUNCTIONS_CONSUMER_ROLE"),
+    );
+
     // Deploy all contracts
     const EscrowManager = await hre.ethers.getContractFactory("EscrowManager");
     const escrowManager = await EscrowManager.deploy();
@@ -32,17 +43,31 @@ describe("Payment Flow Integration", function () {
     const DataRegistry = await hre.ethers.getContractFactory("DataRegistry");
     const dataRegistry = await DataRegistry.deploy(
       await bountyRegistry.getAddress(),
-      functionsConsumer.address,
+    ); // Constructor only takes bountyRegistry address
+
+    // Wire up EscrowManager roles
+    await escrowManager.grantRole(
+      BOUNTY_REGISTRY_ROLE,
+      await bountyRegistry.getAddress(),
+    );
+    await escrowManager.grantRole(
+      DATA_REGISTRY_ROLE,
+      await dataRegistry.getAddress(),
     );
 
-    // Set up all contract references (critical for payment flow)
-    await escrowManager.setBountyRegistry(await bountyRegistry.getAddress());
-    await escrowManager.setDataRegistry(await dataRegistry.getAddress());
+    // Wire up BountyRegistry
     await bountyRegistry.setEscrowManager(await escrowManager.getAddress());
-    await dataRegistry.setEscrowManager(await escrowManager.getAddress());
+    await bountyRegistry.grantRole(
+      DATA_REGISTRY_ROLE,
+      await dataRegistry.getAddress(),
+    );
 
-    // Wire up access control: allow DataRegistry to call BountyRegistry
-    await bountyRegistry.setDataRegistry(await dataRegistry.getAddress());
+    // Wire up DataRegistry
+    await dataRegistry.setEscrowManager(await escrowManager.getAddress());
+    await dataRegistry.grantRole(
+      FUNCTIONS_CONSUMER_ROLE,
+      functionsConsumer.address,
+    );
 
     return {
       escrowManager,
@@ -53,6 +78,9 @@ describe("Payment Flow Integration", function () {
       contributor1,
       contributor2,
       functionsConsumer,
+      DATA_REGISTRY_ROLE,
+      BOUNTY_REGISTRY_ROLE,
+      FUNCTIONS_CONSUMER_ROLE,
     };
   }
 
@@ -344,20 +372,29 @@ describe("Payment Flow Integration", function () {
 
   describe("Access Control", function () {
     it("Should only allow BountyRegistry to deposit to EscrowManager", async function () {
-      const { escrowManager, contributor1 } = await loadFixture(
-        deployFullSystemFixture,
-      );
+      const { escrowManager, contributor1, BOUNTY_REGISTRY_ROLE } =
+        await loadFixture(deployFullSystemFixture);
 
       await expect(
         escrowManager.connect(contributor1).deposit(99, contributor1.address, {
           value: hre.ethers.parseEther("1.0"),
         }),
-      ).to.be.revertedWithCustomError(escrowManager, "Unauthorized");
+      )
+        .to.be.revertedWithCustomError(
+          escrowManager,
+          "AccessControlUnauthorizedAccount",
+        )
+        .withArgs(contributor1.address, BOUNTY_REGISTRY_ROLE);
     });
 
     it("Should only allow DataRegistry to release from EscrowManager", async function () {
-      const { escrowManager, bountyRegistry, bountyCreator, contributor1 } =
-        await loadFixture(deployFullSystemFixture);
+      const {
+        escrowManager,
+        bountyRegistry,
+        bountyCreator,
+        contributor1,
+        DATA_REGISTRY_ROLE,
+      } = await loadFixture(deployFullSystemFixture);
 
       const deadline = (await time.latest()) + 86400;
 
@@ -369,12 +406,22 @@ describe("Payment Flow Integration", function () {
 
       await expect(
         escrowManager.connect(contributor1).release(0, contributor1.address),
-      ).to.be.revertedWithCustomError(escrowManager, "Unauthorized");
+      )
+        .to.be.revertedWithCustomError(
+          escrowManager,
+          "AccessControlUnauthorizedAccount",
+        )
+        .withArgs(contributor1.address, DATA_REGISTRY_ROLE);
     });
 
     it("Should only allow BountyRegistry to refund from EscrowManager", async function () {
-      const { escrowManager, bountyRegistry, bountyCreator, contributor1 } =
-        await loadFixture(deployFullSystemFixture);
+      const {
+        escrowManager,
+        bountyRegistry,
+        bountyCreator,
+        contributor1,
+        BOUNTY_REGISTRY_ROLE,
+      } = await loadFixture(deployFullSystemFixture);
 
       const deadline = (await time.latest()) + 86400;
 
@@ -384,9 +431,12 @@ describe("Payment Flow Integration", function () {
           value: hre.ethers.parseEther("0.1"),
         });
 
-      await expect(
-        escrowManager.connect(contributor1).refund(0),
-      ).to.be.revertedWithCustomError(escrowManager, "Unauthorized");
+      await expect(escrowManager.connect(contributor1).refund(0))
+        .to.be.revertedWithCustomError(
+          escrowManager,
+          "AccessControlUnauthorizedAccount",
+        )
+        .withArgs(contributor1.address, BOUNTY_REGISTRY_ROLE);
     });
   });
 });

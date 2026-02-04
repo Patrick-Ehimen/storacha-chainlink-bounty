@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./EscrowManager.sol";
 
@@ -10,7 +10,7 @@ import "./EscrowManager.sol";
  * @notice Manages creation and lifecycle of data bounties
  * @dev Handles bounty creation, cancellation, and completion
  */
-contract BountyRegistry is Ownable, ReentrancyGuard {
+contract BountyRegistry is AccessControl, ReentrancyGuard {
     struct Bounty {
         uint256 id;
         address creator;
@@ -35,7 +35,9 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
     // State variables
     uint256 private _bountyIdCounter;
     mapping(uint256 => Bounty) public bounties;
-    address public dataRegistry;
+    
+    // Roles
+    bytes32 public constant DATA_REGISTRY_ROLE = keccak256("DATA_REGISTRY_ROLE");
 
     // Minimum reward to prevent spam (0.01 ETH)
     uint256 public constant MIN_REWARD = 0.01 ether;
@@ -64,8 +66,6 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
 
     event EscrowManagerUpdated(address indexed oldAddress, address indexed newAddress);
 
-    event DataRegistryUpdated(address indexed previousRegistry, address indexed newRegistry);
-
     // Custom errors
     error InsufficientReward();
     error InvalidDeadline();
@@ -75,26 +75,10 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
     error MaxSubmissionsReached();
     error EscrowManagerNotSet();
     error EscrowDepositFailed();
-    error DataRegistryNotSet();
     error InvalidAddress();
 
-    modifier onlyDataRegistry() {
-        if (dataRegistry == address(0)) revert DataRegistryNotSet();
-        if (msg.sender != dataRegistry) revert Unauthorized();
-        _;
-    }
-
-    constructor() Ownable(msg.sender) {}
-
-    /**
-     * @notice Set the DataRegistry address
-     * @param _dataRegistry Address of the DataRegistry contract
-     */
-    function setDataRegistry(address _dataRegistry) external onlyOwner {
-        if (_dataRegistry == address(0)) revert InvalidAddress();
-        address previousRegistry = dataRegistry;
-        dataRegistry = _dataRegistry;
-        emit DataRegistryUpdated(previousRegistry, _dataRegistry);
+    constructor() {
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     /**
@@ -165,7 +149,7 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
      * @notice Set the EscrowManager contract address
      * @param _escrowManager Address of the EscrowManager contract
      */
-    function setEscrowManager(address _escrowManager) external onlyOwner {
+    function setEscrowManager(address _escrowManager) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_escrowManager == address(0)) revert BountyNotFound();
 
         address oldAddress = address(escrowManager);
@@ -184,7 +168,7 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
         uint256 bountyId,
         address winner,
         string calldata cid
-    ) external onlyDataRegistry {
+    ) external onlyRole(DATA_REGISTRY_ROLE) {
         Bounty storage bounty = bounties[bountyId];
 
         if (bounty.creator == address(0)) revert BountyNotFound();
@@ -199,7 +183,7 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
      * @notice Increment submission count
      * @param bountyId The ID of the bounty
      */
-    function incrementSubmissions(uint256 bountyId) external onlyDataRegistry {
+    function incrementSubmissions(uint256 bountyId) external onlyRole(DATA_REGISTRY_ROLE) {
         Bounty storage bounty = bounties[bountyId];
 
         if (bounty.creator == address(0)) revert BountyNotFound();
