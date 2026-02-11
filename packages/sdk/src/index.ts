@@ -31,6 +31,7 @@ export { StorachaBountyClient } from "./client.js";
 export type {
   AccountInfo,
   AuthorizationStatus,
+  CacheEntry,
   Capability,
   CID,
   CreateSpaceOptions,
@@ -38,6 +39,9 @@ export type {
   DelegationResult,
   DID,
   Email,
+  FetchOptions,
+  FetchRawResult,
+  FetchResult,
   FileInput,
   ShardMeta,
   SpaceInfo,
@@ -45,3 +49,6 @@ export type {
   UploadOptions,
   UploadResult,
 } from "./types.js";
+
+// Value exports (classes, constants)
+export { DEFAULT_GATEWAYS, IPFSFetchError } from "./types.js";

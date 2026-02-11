@@ -163,3 +163,99 @@ export interface FileInput {
   /** Optional MIME type */
   type?: string;
 }
+
+// ============ IPFS Data Retrieval Types ============
+
+/**
+ * Default IPFS gateways for data retrieval
+ */
+export const DEFAULT_GATEWAYS = [
+  "https://w3s.link/ipfs/",
+  "https://dweb.link/ipfs/",
+  "https://ipfs.io/ipfs/",
+  "https://nftstorage.link/ipfs/",
+] as const;
+
+/**
+ * Options for fetching data from IPFS
+ */
+export interface FetchOptions {
+  /** Timeout per gateway in milliseconds (default: 10000) */
+  timeout?: number;
+  /** Maximum retries per gateway (default: 2) */
+  maxRetries?: number;
+  /** Enable caching (default: true) */
+  useCache?: boolean;
+  /** Cache TTL in milliseconds (default: 300000 - 5 minutes) */
+  cacheTTL?: number;
+  /** Custom gateway list (optional, uses DEFAULT_GATEWAYS if not provided) */
+  gateways?: string[];
+}
+
+/**
+ * Result from fetching data from IPFS
+ */
+export interface FetchResult<T = unknown> {
+  /** The fetched and parsed data */
+  data: T;
+  /** The CID that was fetched */
+  cid: string;
+  /** The gateway that successfully served the content */
+  gateway: string;
+  /** The content type of the response */
+  contentType: string;
+  /** Whether the result was served from cache */
+  cached: boolean;
+}
+
+/**
+ * Result from fetching raw bytes from IPFS
+ */
+export interface FetchRawResult {
+  /** The raw bytes of the content */
+  data: Uint8Array;
+  /** The CID that was fetched */
+  cid: string;
+  /** The gateway that successfully served the content */
+  gateway: string;
+  /** The content type of the response */
+  contentType: string;
+  /** Whether the result was served from cache */
+  cached: boolean;
+}
+
+/**
+ * Cache entry for storing fetched data
+ */
+export interface CacheEntry<T = unknown> {
+  /** The cached data */
+  data: T;
+  /** The content type */
+  contentType: string;
+  /** The gateway that served the content */
+  gateway: string;
+  /** Timestamp when the entry was cached */
+  cachedAt: number;
+  /** TTL in milliseconds */
+  ttl: number;
+}
+
+/**
+ * Error thrown when all gateways fail to fetch content
+ */
+export class IPFSFetchError extends Error {
+  /** The CID that failed to fetch */
+  readonly cid: string;
+  /** Errors from each gateway attempt */
+  readonly gatewayErrors: Map<string, Error>;
+
+  constructor(cid: string, gatewayErrors: Map<string, Error>) {
+    const errorMessages = Array.from(gatewayErrors.entries())
+      .map(([gateway, error]) => `  ${gateway}: ${error.message}`)
+      .join("\n");
+    super(`Failed to fetch CID ${cid} from all gateways:\n${errorMessages}`);
+    this.name = "IPFSFetchError";
+    this.cid = cid;
+    this.gatewayErrors = gatewayErrors;
+  }
+}
