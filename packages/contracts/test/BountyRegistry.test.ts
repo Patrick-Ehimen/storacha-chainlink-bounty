@@ -26,7 +26,14 @@ describe("BountyRegistry", function () {
     // Set up DataRegistry access control
     await registry.setDataRegistry(dataRegistrySigner.address);
 
-    return { registry, escrowManager, owner, creator, user, dataRegistrySigner };
+    return {
+      registry,
+      escrowManager,
+      owner,
+      creator,
+      user,
+      dataRegistrySigner,
+    };
   }
 
   async function deployFixtureWithoutEscrowManager() {
@@ -51,26 +58,37 @@ describe("BountyRegistry", function () {
 
   describe("EscrowManager Integration", function () {
     it("Should revert createBounty if EscrowManager not set", async function () {
-      const { registry, creator } = await loadFixture(deployFixtureWithoutEscrowManager);
+      const { registry, creator } = await loadFixture(
+        deployFixtureWithoutEscrowManager,
+      );
       const deadline = (await time.latest()) + 86400;
       const reward = hre.ethers.parseEther("0.1");
 
       await expect(
-        registry.connect(creator).createBounty("Title", "Desc", "QmSchema", deadline, 10, { value: reward })
+        registry
+          .connect(creator)
+          .createBounty("Title", "Desc", "QmSchema", deadline, 10, {
+            value: reward,
+          }),
       ).to.be.revertedWithCustomError(registry, "EscrowManagerNotSet");
     });
 
     it("Should allow owner to set EscrowManager", async function () {
       const { registry, escrowManager } = await loadFixture(deployFixture);
-      expect(await registry.escrowManager()).to.equal(await escrowManager.getAddress());
+      expect(await registry.escrowManager()).to.equal(
+        await escrowManager.getAddress(),
+      );
     });
 
     it("Should emit event when EscrowManager is updated", async function () {
       const { registry } = await loadFixture(deployFixtureWithoutEscrowManager);
-      const EscrowManager = await hre.ethers.getContractFactory("EscrowManager");
+      const EscrowManager =
+        await hre.ethers.getContractFactory("EscrowManager");
       const newEscrowManager = await EscrowManager.deploy();
 
-      await expect(registry.setEscrowManager(await newEscrowManager.getAddress()))
+      await expect(
+        registry.setEscrowManager(await newEscrowManager.getAddress()),
+      )
         .to.emit(registry, "EscrowManagerUpdated")
         .withArgs(hre.ethers.ZeroAddress, await newEscrowManager.getAddress());
     });
@@ -109,14 +127,22 @@ describe("BountyRegistry", function () {
 
   describe("Create Bounty", function () {
     it("Should create bounty and deposit to EscrowManager", async function () {
-      const { registry, escrowManager, creator } = await loadFixture(deployFixture);
+      const { registry, escrowManager, creator } =
+        await loadFixture(deployFixture);
       const deadline = (await time.latest()) + 86400;
       const reward = hre.ethers.parseEther("0.1");
 
       await expect(
-        registry.connect(creator).createBounty("Title", "Desc", "QmSchema", deadline, 10, { value: reward })
-      ).to.emit(registry, "BountyCreated").withArgs(0, creator.address, reward, "QmSchema", deadline)
-        .and.to.emit(escrowManager, "FundsDeposited").withArgs(0, creator.address, reward);
+        registry
+          .connect(creator)
+          .createBounty("Title", "Desc", "QmSchema", deadline, 10, {
+            value: reward,
+          }),
+      )
+        .to.emit(registry, "BountyCreated")
+        .withArgs(0, creator.address, reward, "QmSchema", deadline)
+        .and.to.emit(escrowManager, "FundsDeposited")
+        .withArgs(0, creator.address, reward);
 
       const bounty = await registry.getBounty(0);
       expect(bounty.creator).to.equal(creator.address);
@@ -169,7 +195,8 @@ describe("BountyRegistry", function () {
 
   describe("Cancel Bounty", function () {
     it("Should cancel and refund creator via EscrowManager", async function () {
-      const { registry, escrowManager, creator } = await loadFixture(deployFixture);
+      const { registry, escrowManager, creator } =
+        await loadFixture(deployFixture);
       const deadline = (await time.latest()) + 86400;
       const reward = hre.ethers.parseEther("0.1");
 
@@ -179,7 +206,9 @@ describe("BountyRegistry", function () {
           value: reward,
         });
 
-      const creatorBalanceBefore = await hre.ethers.provider.getBalance(creator.address);
+      const creatorBalanceBefore = await hre.ethers.provider.getBalance(
+        creator.address,
+      );
 
       const tx = await registry.connect(creator).cancelBounty(0);
       const receipt = await tx.wait();
@@ -191,8 +220,12 @@ describe("BountyRegistry", function () {
         .and.to.emit(escrowManager, "FundsRefunded")
         .withArgs(0, creator.address, reward);
 
-      const creatorBalanceAfter = await hre.ethers.provider.getBalance(creator.address);
-      expect(creatorBalanceAfter + gasUsed - creatorBalanceBefore).to.equal(reward);
+      const creatorBalanceAfter = await hre.ethers.provider.getBalance(
+        creator.address,
+      );
+      expect(creatorBalanceAfter + gasUsed - creatorBalanceBefore).to.equal(
+        reward,
+      );
 
       const bounty = await registry.getBounty(0);
       expect(bounty.status).to.equal(3); // CANCELLED
@@ -206,11 +239,16 @@ describe("BountyRegistry", function () {
       const deadline = (await time.latest()) + 86400;
       const reward = hre.ethers.parseEther("0.1");
 
-      await registry.connect(creator).createBounty("Title", "Desc", "QmSchema", deadline, 10, { value: reward });
+      await registry
+        .connect(creator)
+        .createBounty("Title", "Desc", "QmSchema", deadline, 10, {
+          value: reward,
+        });
       await registry.connect(creator).cancelBounty(0);
 
-      await expect(registry.connect(creator).cancelBounty(0))
-        .to.be.revertedWithCustomError(registry, "InvalidStatus");
+      await expect(
+        registry.connect(creator).cancelBounty(0),
+      ).to.be.revertedWithCustomError(registry, "InvalidStatus");
     });
 
     it("Should revert if not creator", async function () {
@@ -270,7 +308,8 @@ describe("BountyRegistry", function () {
 
     it("Should revert if DataRegistry not set", async function () {
       const [owner, creator, user] = await hre.ethers.getSigners();
-      const EscrowManager = await hre.ethers.getContractFactory("EscrowManager");
+      const EscrowManager =
+        await hre.ethers.getContractFactory("EscrowManager");
       const escrowManager = await EscrowManager.deploy();
       const BountyRegistry =
         await hre.ethers.getContractFactory("BountyRegistry");
