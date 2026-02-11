@@ -60,11 +60,15 @@ Emitted when a bounty expires (deadline passed) and funds are reclaimed.
 
 ```solidity
 event BountyExpired(
-    uint256 indexed id
+    uint256 indexed id,
+    address indexed creator,
+    uint256 reward
 );
 ```
 
 - `id`: Unique identifier for the bounty.
+- `creator`: Address of the bounty creator receiving the refund.
+- `reward`: Amount of ETH (in wei) refunded to the creator.
 
 ### RewardIncreased
 

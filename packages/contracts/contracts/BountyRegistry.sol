@@ -61,7 +61,7 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
 
     event BountyCancelled(uint256 indexed id, address indexed creator);
 
-    event BountyExpired(uint256 indexed id);
+    event BountyExpired(uint256 indexed id, address indexed creator, uint256 reward);
 
     event RewardIncreased(
         uint256 indexed id,
@@ -214,10 +214,14 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
         Bounty storage bounty = bounties[bountyId];
 
         if (bounty.creator == address(0)) revert BountyNotFound();
+        if (msg.sender != bounty.creator) revert Unauthorized();
         if (bounty.status != BountyStatus.ACTIVE) revert InvalidStatus();
         if (msg.value == 0) revert InsufficientReward();
 
         bounty.reward += msg.value;
+
+        // Route funds through EscrowManager
+        escrowManager.increaseDeposit{value: msg.value}(bountyId, msg.sender);
 
         emit RewardIncreased(bountyId, msg.value, bounty.reward);
     }
@@ -234,6 +238,7 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
         if (msg.sender != bounty.creator) revert Unauthorized();
         if (bounty.status != BountyStatus.ACTIVE) revert InvalidStatus();
         if (newDeadline <= bounty.deadline) revert InvalidDeadline();
+        if (newDeadline <= block.timestamp) revert InvalidDeadline();
 
         bounty.deadline = newDeadline;
 
@@ -253,11 +258,10 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
 
         bounty.status = BountyStatus.EXPIRED;
 
-        // Refund creator
-        (bool success, ) = bounty.creator.call{value: bounty.reward}("");
-        require(success, "Refund failed");
+        // Refund creator via EscrowManager
+        escrowManager.refund(bountyId);
 
-        emit BountyExpired(bountyId);
+        emit BountyExpired(bountyId, bounty.creator, bounty.reward);
     }
 
     /**
