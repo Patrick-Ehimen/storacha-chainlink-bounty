@@ -1,0 +1,46 @@
+{
+  "name": "@storacha-chainlink/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for Storacha integration with the data bounty marketplace",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "lint": "eslint src --max-warnings 0",
+    "check-types": "tsc --noEmit"
+  },
+  "keywords": [
+    "storacha",
+    "w3up",
+    "ipfs",
+    "ucan",
+    "filecoin",
+    "bounty",
+    "chainlink"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@storacha/client": "^1.0.0"
+  },
+  "devDependencies": {
+    "@storacha-chainlink/eslint-config": "workspace:*",
+    "@storacha-chainlink/typescript-config": "workspace:*",
+    "@types/node": "^22.15.3",
+    "typescript": "^5.9.2"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.0.0"
+  }
+}

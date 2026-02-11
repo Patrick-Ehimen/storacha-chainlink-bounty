@@ -1,3 +1,15 @@
 import { config } from "@storacha-chainlink/eslint-config/base";
 
-export default config;
+/** @type {import("eslint").Linter.Config[]} */
+export default [
+  ...config,
+  {
+    ignores: [
+      "ignition/deployments/**",
+      "artifacts/**",
+      "cache/**",
+      "typechain-types/**",
+      "coverage/**",
+    ],
+  },
+];
