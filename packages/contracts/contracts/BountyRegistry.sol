@@ -28,7 +28,8 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
         DRAFT,
         ACTIVE,
         COMPLETED,
-        CANCELLED
+        CANCELLED,
+        EXPIRED
     }
 
     // State variables
@@ -49,7 +50,7 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
         uint256 reward,
         string metadataUri,
         string schemaUri,
-        uint256 deadline
+        uint256 indexed deadline
     );
 
     event BountyCompleted(
@@ -59,6 +60,16 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
     );
 
     event BountyCancelled(uint256 indexed id, address indexed creator);
+
+    event BountyExpired(uint256 indexed id, address indexed creator, uint256 reward);
+
+    event RewardIncreased(
+        uint256 indexed id,
+        uint256 amountAdded,
+        uint256 newReward
+    );
+
+    event DeadlineExtended(uint256 indexed id, uint256 newDeadline);
 
     event SubmissionIncremented(uint256 indexed bountyId, uint256 newCount);
 
@@ -190,6 +201,64 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
         bounty.status = BountyStatus.COMPLETED;
 
         emit BountyCompleted(bountyId, winner, cid);
+    }
+
+    /**
+     * @notice Increase bounty reward
+     * @param bountyId The ID of the bounty
+     */
+    function increaseReward(uint256 bountyId) external payable nonReentrant {
+        Bounty storage bounty = bounties[bountyId];
+
+        if (bounty.creator == address(0)) revert BountyNotFound();
+        if (msg.sender != bounty.creator) revert Unauthorized();
+        if (bounty.status != BountyStatus.ACTIVE) revert InvalidStatus();
+        if (msg.value == 0) revert InsufficientReward();
+
+        bounty.reward += msg.value;
+
+        // Route funds through EscrowManager
+        escrowManager.increaseDeposit{value: msg.value}(bountyId, msg.sender);
+
+        emit RewardIncreased(bountyId, msg.value, bounty.reward);
+    }
+
+    /**
+     * @notice Extend bounty deadline
+     * @param bountyId The ID of the bounty
+     * @param newDeadline New deadline timestamp
+     */
+    function extendDeadline(uint256 bountyId, uint256 newDeadline) external nonReentrant {
+        Bounty storage bounty = bounties[bountyId];
+
+        if (bounty.creator == address(0)) revert BountyNotFound();
+        if (msg.sender != bounty.creator) revert Unauthorized();
+        if (bounty.status != BountyStatus.ACTIVE) revert InvalidStatus();
+        if (newDeadline <= bounty.deadline) revert InvalidDeadline();
+        if (newDeadline <= block.timestamp) revert InvalidDeadline();
+
+        bounty.deadline = newDeadline;
+
+        emit DeadlineExtended(bountyId, newDeadline);
+    }
+
+    /**
+     * @notice Expire bounty and refund creator
+     * @param bountyId The ID of the bounty
+     */
+    function expireBounty(uint256 bountyId) external nonReentrant {
+        Bounty storage bounty = bounties[bountyId];
+
+        if (bounty.creator == address(0)) revert BountyNotFound();
+        if (bounty.status != BountyStatus.ACTIVE) revert InvalidStatus();
+        if (block.timestamp <= bounty.deadline) revert InvalidDeadline();
+
+        bounty.status = BountyStatus.EXPIRED;
+
+        // Refund creator via EscrowManager
+        escrowManager.refund(bountyId);
+
+        emit BountyExpired(bountyId, bounty.creator, bounty.reward);
     }
 
     /**

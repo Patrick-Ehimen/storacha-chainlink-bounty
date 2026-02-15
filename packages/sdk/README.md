@@ -226,7 +226,7 @@ const dataRegistry = new ethers.Contract(DATA_REGISTRY_ADDRESS, ABI, signer);
 await dataRegistry.submitData(
   1, // bountyId
   upload.cidString, // CID
-  JSON.stringify({ name: "My Submission" }) // metadata
+  JSON.stringify({ name: "My Submission" }), // metadata
 );
 ```
 
