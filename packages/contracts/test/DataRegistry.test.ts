@@ -83,7 +83,6 @@ describe("DataRegistry", function () {
       expect(await dataRegistry.bountyRegistry()).to.equal(
         await bountyRegistry.getAddress(),
       );
-
       const FUNCTIONS_CONSUMER_ROLE =
         await dataRegistry.FUNCTIONS_CONSUMER_ROLE();
       expect(
@@ -92,7 +91,6 @@ describe("DataRegistry", function () {
           functionsConsumer.address,
         ),
       ).to.be.true;
-
       expect(await dataRegistry.escrowManager()).to.equal(
         await escrowManager.getAddress(),
       );

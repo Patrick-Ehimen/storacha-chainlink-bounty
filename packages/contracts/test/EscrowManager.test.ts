@@ -17,6 +17,9 @@ describe("EscrowManager", function () {
     const DATA_REGISTRY_ROLE = await escrowManager.DATA_REGISTRY_ROLE();
     await escrowManager.grantRole(DATA_REGISTRY_ROLE, dataRegistry.address);
 
+    const ESCROW_MANAGER_ROLE = await escrowManager.ESCROW_MANAGER_ROLE();
+    await escrowManager.grantRole(ESCROW_MANAGER_ROLE, owner.address);
+
     return {
       escrowManager,
       owner,
@@ -428,7 +431,7 @@ describe("EscrowManager", function () {
       const { escrowManager, bountyRegistry, depositor, user, recipient } =
         await loadFixture(deployFixture);
       const amount = hre.ethers.parseEther("1.0");
-      const DEFAULT_ADMIN_ROLE = await escrowManager.DEFAULT_ADMIN_ROLE();
+      const ESCROW_MANAGER_ROLE = await escrowManager.ESCROW_MANAGER_ROLE();
 
       await escrowManager
         .connect(bountyRegistry)
@@ -441,7 +444,7 @@ describe("EscrowManager", function () {
           escrowManager,
           "AccessControlUnauthorizedAccount",
         )
-        .withArgs(user.address, DEFAULT_ADMIN_ROLE);
+        .withArgs(user.address, ESCROW_MANAGER_ROLE);
     });
 
     it("Should revert emergency withdraw with zero recipient", async function () {
