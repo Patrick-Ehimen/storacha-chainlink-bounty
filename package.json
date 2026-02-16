@@ -7,9 +7,12 @@
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
-    "prepare": "husky"
+    "prepare": "husky",
+    "compile": "turbo run compile"
   },
   "devDependencies": {
+    "eslint": "^9.39.1",
+    "@storacha-chainlink/eslint-config": "workspace:*",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "prettier": "^3.6.2",
