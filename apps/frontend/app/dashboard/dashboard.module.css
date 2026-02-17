@@ -98,6 +98,11 @@
   color: #475569;
 }
 
+.statusExpired {
+  background-color: #fef2f2;
+  color: #991b1b;
+}
+
 .statusPending {
   background-color: #fef9c3;
   color: #854d0e;

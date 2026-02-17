@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useAccount,
   useReadContract,
@@ -22,7 +22,7 @@ const formatDate = (timestamp: bigint) => {
 };
 
 const getBountyStatus = (status: number) => {
-  const statuses = ["DRAFT", "ACTIVE", "COMPLETED", "CANCELLED"];
+  const statuses = ["DRAFT", "ACTIVE", "COMPLETED", "CANCELLED", "EXPIRED"];
   return statuses[status] || "UNKNOWN";
 };
 
@@ -141,14 +141,22 @@ function BountySubmissionsList({
 function MyBountiesList({ address }: { address: `0x${string}` }) {
   const [selectedBountyId, setSelectedBountyId] = useState<bigint | null>(null);
 
-  const { data: bountyIds, isLoading: isLoadingIds } = useReadContract({
+  const {
+    data: bountyIds,
+    isLoading: isLoadingIds,
+    refetch: refetchIds,
+  } = useReadContract({
     address: BOUNTY_REGISTRY_ADDRESS,
     abi: BOUNTY_REGISTRY_ABI,
     functionName: "getBountiesByCreator",
     args: [address],
   });
 
-  const { data: bounties, isLoading: isLoadingBounties } = useReadContracts({
+  const {
+    data: bounties,
+    isLoading: isLoadingBounties,
+    refetch: refetchBounties,
+  } = useReadContracts({
     contracts: (bountyIds || []).map((id) => ({
       address: BOUNTY_REGISTRY_ADDRESS,
       abi: BOUNTY_REGISTRY_ABI,
@@ -163,7 +171,20 @@ function MyBountiesList({ address }: { address: `0x${string}` }) {
       hash,
     });
 
+  useEffect(() => {
+    if (isCancelled) {
+      refetchIds();
+      refetchBounties();
+    }
+  }, [isCancelled, refetchIds, refetchBounties]);
+
   const handleCancel = (id: bigint) => {
+    if (
+      !confirm(
+        "Are you sure you want to cancel this bounty? This action is irreversible.",
+      )
+    )
+      return;
     writeContract({
       address: BOUNTY_REGISTRY_ADDRESS,
       abi: BOUNTY_REGISTRY_ABI,
