@@ -111,7 +111,7 @@
   background: #22c55e;
 }
 
-.status.closed .statusDot {
+.statusClosed .statusDot {
   background: #ef4444;
 }
 
