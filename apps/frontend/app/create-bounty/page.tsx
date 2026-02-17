@@ -7,7 +7,6 @@ import {
   useAccount,
 } from "wagmi";
 import { parseEther } from "viem";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import styles from "./page.module.css";
 import { ThemeToggle } from "../components/ThemeToggle";
@@ -15,7 +14,6 @@ import { ConnectWallet } from "../components/ConnectWallet";
 import { BOUNTY_REGISTRY_ADDRESS, BOUNTY_REGISTRY_ABI } from "../constants";
 
 export default function CreateBounty() {
-  const router = useRouter();
   const { isConnected } = useAccount();
 
   const [formData, setFormData] = useState({
@@ -26,6 +24,8 @@ export default function CreateBounty() {
     deadline: "",
     maxSubmissions: "",
   });
+
+  const [error, setError] = useState<string | null>(null);
 
   const {
     data: hash,
@@ -46,10 +46,38 @@ export default function CreateBounty() {
       return;
     }
 
+    const nowInSeconds = Math.floor(Date.now() / 1000);
+    const deadlineTimestamp = Math.floor(
+      new Date(formData.deadline).getTime() / 1000,
+    );
+
+    if (!deadlineTimestamp || Number.isNaN(deadlineTimestamp)) {
+      setError("Please provide a valid deadline");
+      return;
+    }
+
+    if (deadlineTimestamp <= nowInSeconds) {
+      setError("Deadline must be in the future");
+      return;
+    }
+
+    const reward = parseFloat(formData.reward);
+
+    if (Number.isNaN(reward) || reward < 0.01) {
+      setError("Minimum reward is 0.01 ETH");
+      return;
+    }
+
+    const maxSubmissions = parseInt(formData.maxSubmissions, 10);
+
+    if (Number.isNaN(maxSubmissions) || maxSubmissions <= 0) {
+      setError("Max submissions must be at least 1");
+      return;
+    }
+
+    setError(null);
+
     try {
-      const deadlineTimestamp = Math.floor(
-        new Date(formData.deadline).getTime() / 1000,
-      );
       const rewardWei = parseEther(formData.reward);
 
       writeContract({
@@ -61,7 +89,7 @@ export default function CreateBounty() {
           formData.description,
           formData.schemaUri,
           BigInt(deadlineTimestamp),
-          BigInt(formData.maxSubmissions),
+          BigInt(maxSubmissions),
         ],
         value: rewardWei,
       });
@@ -207,6 +235,8 @@ export default function CreateBounty() {
               required
             />
           </div>
+
+          {error && <div className={styles.error}>Error: {error}</div>}
 
           <button
             type="submit"
