@@ -20,15 +20,23 @@ const config: HardhatUserConfig = {
       chainId: 1337,
     },
     sepolia: {
-      url: process.env.SEPOLIA_RPC_URL || "",
+      url:
+        process.env.SEPOLIA_RPC_URL ||
+        "https://ethereum-sepolia-rpc.publicnode.com",
       accounts:
-        process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
+        process.env.PRIVATE_KEY !== undefined && process.env.PRIVATE_KEY !== ""
+          ? [process.env.PRIVATE_KEY]
+          : [],
       chainId: 11155111,
     },
     arbitrumSepolia: {
-      url: process.env.ARBITRUM_SEPOLIA_RPC_URL || "",
+      url:
+        process.env.ARBITRUM_SEPOLIA_RPC_URL ||
+        "https://sepolia-rollup.arbitrum.io/rpc",
       accounts:
-        process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
+        process.env.PRIVATE_KEY !== undefined && process.env.PRIVATE_KEY !== ""
+          ? [process.env.PRIVATE_KEY]
+          : [],
       chainId: 421614,
     },
   },

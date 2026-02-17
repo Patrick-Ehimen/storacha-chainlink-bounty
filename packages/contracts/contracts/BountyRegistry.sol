@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "./EscrowManager.sol";
 
 /**
  * @title BountyRegistry
@@ -28,15 +29,20 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
         DRAFT,
         ACTIVE,
         COMPLETED,
-        CANCELLED
+        CANCELLED,
+        EXPIRED
     }
 
     // State variables
     uint256 private _bountyIdCounter;
     mapping(uint256 => Bounty) public bounties;
+    address public dataRegistry;
 
     // Minimum reward to prevent spam (0.01 ETH)
     uint256 public constant MIN_REWARD = 0.01 ether;
+
+    // EscrowManager for secure fund management
+    EscrowManager public escrowManager;
 
     // Events
     event BountyCreated(
@@ -44,7 +50,7 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
         address indexed creator,
         uint256 reward,
         string schemaUri,
-        uint256 deadline
+        uint256 indexed deadline
     );
 
     event BountyCompleted(
@@ -55,7 +61,21 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
 
     event BountyCancelled(uint256 indexed id, address indexed creator);
 
+    event BountyExpired(uint256 indexed id, address indexed creator, uint256 reward);
+
+    event RewardIncreased(
+        uint256 indexed id,
+        uint256 amountAdded,
+        uint256 newReward
+    );
+
+    event DeadlineExtended(uint256 indexed id, uint256 newDeadline);
+
     event SubmissionIncremented(uint256 indexed bountyId, uint256 newCount);
+
+    event EscrowManagerUpdated(address indexed oldAddress, address indexed newAddress);
+
+    event DataRegistryUpdated(address indexed previousRegistry, address indexed newRegistry);
 
     // Custom errors
     error InsufficientReward();
@@ -64,8 +84,29 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
     error Unauthorized();
     error InvalidStatus();
     error MaxSubmissionsReached();
+    error EscrowManagerNotSet();
+    error EscrowDepositFailed();
+    error DataRegistryNotSet();
+    error InvalidAddress();
+
+    modifier onlyDataRegistry() {
+        if (dataRegistry == address(0)) revert DataRegistryNotSet();
+        if (msg.sender != dataRegistry) revert Unauthorized();
+        _;
+    }
 
     constructor() Ownable(msg.sender) {}
+
+    /**
+     * @notice Set the DataRegistry address
+     * @param _dataRegistry Address of the DataRegistry contract
+     */
+    function setDataRegistry(address _dataRegistry) external onlyOwner {
+        if (_dataRegistry == address(0)) revert InvalidAddress();
+        address previousRegistry = dataRegistry;
+        dataRegistry = _dataRegistry;
+        emit DataRegistryUpdated(previousRegistry, _dataRegistry);
+    }
 
     /**
      * @notice Create a new bounty
@@ -86,6 +127,7 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
         if (msg.value < MIN_REWARD) revert InsufficientReward();
         if (deadline <= block.timestamp) revert InvalidDeadline();
         if (maxSubmissions == 0) revert InvalidStatus();
+        if (address(escrowManager) == address(0)) revert EscrowManagerNotSet();
 
         uint256 bountyId = _bountyIdCounter++;
 
@@ -103,13 +145,16 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
             createdAt: block.timestamp
         });
 
+        // Deposit funds into EscrowManager
+        escrowManager.deposit{value: msg.value}(bountyId, msg.sender);
+
         emit BountyCreated(bountyId, msg.sender, msg.value, schemaUri, deadline);
 
         return bountyId;
     }
 
     /**
-     * @notice Cancel bounty and refund creator
+     * @notice Cancel bounty and refund creator via EscrowManager
      * @param bountyId The ID of the bounty to cancel
      */
     function cancelBounty(uint256 bountyId) external nonReentrant {
@@ -121,11 +166,23 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
 
         bounty.status = BountyStatus.CANCELLED;
 
-        // Refund creator
-        (bool success, ) = bounty.creator.call{value: bounty.reward}("");
-        require(success, "Refund failed");
+        // Refund creator via EscrowManager
+        escrowManager.refund(bountyId);
 
         emit BountyCancelled(bountyId, bounty.creator);
+    }
+
+    /**
+     * @notice Set the EscrowManager contract address
+     * @param _escrowManager Address of the EscrowManager contract
+     */
+    function setEscrowManager(address _escrowManager) external onlyOwner {
+        if (_escrowManager == address(0)) revert BountyNotFound();
+
+        address oldAddress = address(escrowManager);
+        escrowManager = EscrowManager(payable(_escrowManager));
+
+        emit EscrowManagerUpdated(oldAddress, _escrowManager);
     }
 
     /**
@@ -138,7 +195,7 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
         uint256 bountyId,
         address winner,
         string calldata cid
-    ) external {
+    ) external onlyDataRegistry {
         Bounty storage bounty = bounties[bountyId];
 
         if (bounty.creator == address(0)) revert BountyNotFound();
@@ -150,10 +207,68 @@ contract BountyRegistry is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @notice Increase bounty reward
+     * @param bountyId The ID of the bounty
+     */
+    function increaseReward(uint256 bountyId) external payable nonReentrant {
+        Bounty storage bounty = bounties[bountyId];
+
+        if (bounty.creator == address(0)) revert BountyNotFound();
+        if (msg.sender != bounty.creator) revert Unauthorized();
+        if (bounty.status != BountyStatus.ACTIVE) revert InvalidStatus();
+        if (msg.value == 0) revert InsufficientReward();
+
+        bounty.reward += msg.value;
+
+        // Route funds through EscrowManager
+        escrowManager.increaseDeposit{value: msg.value}(bountyId, msg.sender);
+
+        emit RewardIncreased(bountyId, msg.value, bounty.reward);
+    }
+
+    /**
+     * @notice Extend bounty deadline
+     * @param bountyId The ID of the bounty
+     * @param newDeadline New deadline timestamp
+     */
+    function extendDeadline(uint256 bountyId, uint256 newDeadline) external nonReentrant {
+        Bounty storage bounty = bounties[bountyId];
+
+        if (bounty.creator == address(0)) revert BountyNotFound();
+        if (msg.sender != bounty.creator) revert Unauthorized();
+        if (bounty.status != BountyStatus.ACTIVE) revert InvalidStatus();
+        if (newDeadline <= bounty.deadline) revert InvalidDeadline();
+        if (newDeadline <= block.timestamp) revert InvalidDeadline();
+
+        bounty.deadline = newDeadline;
+
+        emit DeadlineExtended(bountyId, newDeadline);
+    }
+
+    /**
+     * @notice Expire bounty and refund creator
+     * @param bountyId The ID of the bounty
+     */
+    function expireBounty(uint256 bountyId) external nonReentrant {
+        Bounty storage bounty = bounties[bountyId];
+
+        if (bounty.creator == address(0)) revert BountyNotFound();
+        if (bounty.status != BountyStatus.ACTIVE) revert InvalidStatus();
+        if (block.timestamp <= bounty.deadline) revert InvalidDeadline();
+
+        bounty.status = BountyStatus.EXPIRED;
+
+        // Refund creator via EscrowManager
+        escrowManager.refund(bountyId);
+
+        emit BountyExpired(bountyId, bounty.creator, bounty.reward);
+    }
+
+    /**
      * @notice Increment submission count
      * @param bountyId The ID of the bounty
      */
-    function incrementSubmissions(uint256 bountyId) external {
+    function incrementSubmissions(uint256 bountyId) external onlyDataRegistry {
         Bounty storage bounty = bounties[bountyId];
 
         if (bounty.creator == address(0)) revert BountyNotFound();
