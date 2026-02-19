@@ -23,17 +23,39 @@ describe("DataRegistry", function () {
     const DataRegistry = await hre.ethers.getContractFactory("DataRegistry");
     const dataRegistry = await DataRegistry.deploy(
       await bountyRegistry.getAddress(),
-      functionsConsumer.address,
     );
 
     // Set up all contract references
-    await escrowManager.setBountyRegistry(await bountyRegistry.getAddress());
-    await escrowManager.setDataRegistry(await dataRegistry.getAddress());
+    const BOUNTY_REGISTRY_ROLE = await escrowManager.BOUNTY_REGISTRY_ROLE();
+    await escrowManager.grantRole(
+      BOUNTY_REGISTRY_ROLE,
+      await bountyRegistry.getAddress(),
+    );
+
+    const DATA_REGISTRY_ROLE_IN_ESCROW =
+      await escrowManager.DATA_REGISTRY_ROLE();
+    await escrowManager.grantRole(
+      DATA_REGISTRY_ROLE_IN_ESCROW,
+      await dataRegistry.getAddress(),
+    );
+
     await bountyRegistry.setEscrowManager(await escrowManager.getAddress());
     await dataRegistry.setEscrowManager(await escrowManager.getAddress());
 
     // Wire up access control: allow DataRegistry to call BountyRegistry
-    await bountyRegistry.setDataRegistry(await dataRegistry.getAddress());
+    const DATA_REGISTRY_ROLE = await bountyRegistry.DATA_REGISTRY_ROLE();
+    await bountyRegistry.grantRole(
+      DATA_REGISTRY_ROLE,
+      await dataRegistry.getAddress(),
+    );
+
+    // Wire up FunctionsConsumer role in DataRegistry
+    const FUNCTIONS_CONSUMER_ROLE =
+      await dataRegistry.FUNCTIONS_CONSUMER_ROLE();
+    await dataRegistry.grantRole(
+      FUNCTIONS_CONSUMER_ROLE,
+      functionsConsumer.address,
+    );
 
     // Create a test bounty
     const deadline = (await time.latest()) + 86400;
@@ -55,15 +77,20 @@ describe("DataRegistry", function () {
   }
 
   describe("Deployment", function () {
-    it("Should set correct addresses", async function () {
+    it("Should set correct addresses and roles", async function () {
       const { dataRegistry, bountyRegistry, escrowManager, functionsConsumer } =
         await loadFixture(deployFixture);
       expect(await dataRegistry.bountyRegistry()).to.equal(
         await bountyRegistry.getAddress(),
       );
-      expect(await dataRegistry.functionsConsumer()).to.equal(
-        functionsConsumer.address,
-      );
+      const FUNCTIONS_CONSUMER_ROLE =
+        await dataRegistry.FUNCTIONS_CONSUMER_ROLE();
+      expect(
+        await dataRegistry.hasRole(
+          FUNCTIONS_CONSUMER_ROLE,
+          functionsConsumer.address,
+        ),
+      ).to.be.true;
       expect(await dataRegistry.escrowManager()).to.equal(
         await escrowManager.getAddress(),
       );
@@ -199,11 +226,19 @@ describe("DataRegistry", function () {
         .connect(contributor)
         .submitData(0, "QmDataCID", "metadata");
 
+      const FUNCTIONS_CONSUMER_ROLE =
+        await dataRegistry.FUNCTIONS_CONSUMER_ROLE();
+
       await expect(
         dataRegistry
           .connect(contributor)
           .handleVerificationResult(0, true, "0x"),
-      ).to.be.revertedWithCustomError(dataRegistry, "Unauthorized");
+      )
+        .to.be.revertedWithCustomError(
+          dataRegistry,
+          "AccessControlUnauthorizedAccount",
+        )
+        .withArgs(contributor.address, FUNCTIONS_CONSUMER_ROLE);
     });
 
     it("Should revert for invalid status", async function () {
@@ -247,15 +282,21 @@ describe("DataRegistry", function () {
   });
 
   describe("Admin Functions", function () {
-    it("Should allow owner to set FunctionsConsumer", async function () {
+    it("Should allow admin to grant FunctionsConsumer role", async function () {
       const { dataRegistry, owner } = await loadFixture(deployFixture);
       const newAddress = hre.ethers.Wallet.createRandom().address;
+      const FUNCTIONS_CONSUMER_ROLE =
+        await dataRegistry.FUNCTIONS_CONSUMER_ROLE();
 
-      await dataRegistry.connect(owner).setFunctionsConsumer(newAddress);
-      expect(await dataRegistry.functionsConsumer()).to.equal(newAddress);
+      await expect(dataRegistry.grantRole(FUNCTIONS_CONSUMER_ROLE, newAddress))
+        .to.emit(dataRegistry, "RoleGranted")
+        .withArgs(FUNCTIONS_CONSUMER_ROLE, newAddress, owner.address);
+
+      expect(await dataRegistry.hasRole(FUNCTIONS_CONSUMER_ROLE, newAddress)).to
+        .be.true;
     });
 
-    it("Should allow owner to set EscrowManager", async function () {
+    it("Should allow admin to set EscrowManager", async function () {
       const { dataRegistry, owner } = await loadFixture(deployFixture);
       const EscrowManager =
         await hre.ethers.getContractFactory("EscrowManager");
