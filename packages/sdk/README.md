@@ -56,7 +56,11 @@ const client = await StorachaBountyClient.create();
 
 // With custom configuration
 const client = await StorachaBountyClient.create({
-  serviceUrl: "https://custom-storacha-instance.com",
+  serviceUrl: "https://custom-storacha-instance.com/ipfs/",
+  clientOptions: {
+    principal: "did:key:z6MkYourAgentDid",
+  },
+});
 });
 ```
 
