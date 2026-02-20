@@ -57,7 +57,7 @@ export class StorachaBountyClient {
    * @returns A new StorachaBountyClient instance
    */
   static async create(
-    _config?: StorachaBountyClientConfig,
+    config?: StorachaBountyClientConfig,
   ): Promise<StorachaBountyClient> {
     const client = await Client.create();
     return new StorachaBountyClient(client);
