@@ -62,34 +62,73 @@ pnpm install
 
 ### 2. Environment Setup
 
-Create `.env` files in the appropriate packages:
+Use the provided example files as a starting point and copy them to real `.env` files:
 
-**`packages/contracts/.env`:**
+1. **Root env (shared defaults)**
 
-```env
-# Network RPC URLs
-SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
-ARBITRUM_SEPOLIA_RPC_URL=https://arb-sepolia.g.alchemy.com/v2/YOUR_KEY
+   Copy `.env.example` to `.env` at the repository root:
 
-# Deployment
-PRIVATE_KEY=your_private_key_here
+   ```bash
+   cp .env.example .env
+   ```
 
-# Verification
-ETHERSCAN_API_KEY=your_etherscan_key
-ARBISCAN_API_KEY=your_arbiscan_key
+   Example contents:
 
-# Chainlink
-CHAINLINK_ROUTER=0xb83E47C2bC239B3bf370bc41e1459A34b41238D0  # Sepolia
-SUBSCRIPTION_ID=your_subscription_id
-DON_ID=fun-ethereum-sepolia-1
-```
+   ```env
+   SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
+   ARBITRUM_SEPOLIA_RPC_URL=https://arb-sepolia.g.alchemy.com/v2/YOUR_KEY
+   PRIVATE_KEY=your_private_key_here
+   ETHERSCAN_API_KEY=your_etherscan_key
+   ARBISCAN_API_KEY=your_arbiscan_key
 
-**`apps/frontend/.env.local`:**
+   CHAINLINK_ROUTER=0xb83E47C2bC239B3bf370bc41e1459A34b41238D0
+   SUBSCRIPTION_ID=your_subscription_id
+   DON_ID=fun-ethereum-sepolia-1
 
-```env
-NEXT_PUBLIC_BOUNTY_REGISTRY=0x...  # Deployed contract address
-NEXT_PUBLIC_DATA_REGISTRY=0x...
-```
+   NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=your_walletconnect_project_id
+   NEXT_PUBLIC_BOUNTY_REGISTRY_ADDRESS=0xYourBountyRegistryAddress
+   NEXT_PUBLIC_DATA_REGISTRY_ADDRESS=0xYourDataRegistryAddress
+   ```
+
+2. **Contracts env**
+
+   Inside `packages/contracts`, copy `.env.example` to `.env`:
+
+   ```bash
+   cd packages/contracts
+   cp .env.example .env
+   ```
+
+   Example contents (must match the example file):
+
+   ```env
+   SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
+   ARBITRUM_SEPOLIA_RPC_URL=https://arb-sepolia.g.alchemy.com/v2/YOUR_KEY
+   PRIVATE_KEY=your_private_key_here
+   ETHERSCAN_API_KEY=your_etherscan_key
+   ARBISCAN_API_KEY=your_arbiscan_key
+
+   CHAINLINK_ROUTER=0xb83E47C2bC239B3bf370bc41e1459A34b41238D0
+   SUBSCRIPTION_ID=your_subscription_id
+   DON_ID=fun-ethereum-sepolia-1
+   ```
+
+3. **Frontend env**
+
+   Inside `apps/frontend`, copy `.env.example` to `.env.local`:
+
+   ```bash
+   cd apps/frontend
+   cp .env.example .env.local
+   ```
+
+   Example contents:
+
+   ```env
+   NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=your_walletconnect_project_id
+   NEXT_PUBLIC_BOUNTY_REGISTRY_ADDRESS=0xYourBountyRegistryAddress
+   NEXT_PUBLIC_DATA_REGISTRY_ADDRESS=0xYourDataRegistryAddress
+   ```
 
 ### 3. Development
 
