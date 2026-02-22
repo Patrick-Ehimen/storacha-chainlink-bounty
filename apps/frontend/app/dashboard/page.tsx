@@ -16,6 +16,7 @@ import {
   DATA_REGISTRY_ADDRESS,
 } from "../constants/contracts";
 import { ConnectWallet } from "../components/ConnectWallet";
+import { useToast } from "../components/ToastProvider";
 
 const formatDate = (timestamp: bigint) => {
   return new Date(Number(timestamp) * 1000).toLocaleDateString();
@@ -53,7 +54,22 @@ function BountySubmissionsList({
         functionName: "getSubmission",
         args: [id],
       })),
-    });
+    }) as {
+      data?: {
+        error?: Error;
+        result?: {
+          id: bigint;
+          bountyId: bigint;
+          contributor: `0x${string}`;
+          cid: string;
+          metadata: string;
+          status: number;
+          submittedAt: bigint;
+          verifiedAt: bigint;
+        };
+      }[];
+      isLoading: boolean;
+    };
 
   if (isLoadingIds || isLoadingSubmissions) {
     return (
@@ -140,6 +156,8 @@ function BountySubmissionsList({
 
 function MyBountiesList({ address }: { address: `0x${string}` }) {
   const [selectedBountyId, setSelectedBountyId] = useState<bigint | null>(null);
+  const { chain } = useAccount();
+  const { addToast } = useToast();
 
   const {
     data: bountyIds,
@@ -152,31 +170,88 @@ function MyBountiesList({ address }: { address: `0x${string}` }) {
     args: [address],
   });
 
-  const {
-    data: bounties,
-    isLoading: isLoadingBounties,
-    refetch: refetchBounties,
-  } = useReadContracts({
+  const { data: bounties, isLoading: isLoadingBounties } = useReadContracts({
     contracts: (bountyIds || []).map((id) => ({
       address: BOUNTY_REGISTRY_ADDRESS,
       abi: BOUNTY_REGISTRY_ABI,
       functionName: "getBounty",
       args: [id],
     })),
+  }) as {
+    data?: {
+      error?: Error;
+      result?: {
+        id: bigint;
+        creator: `0x${string}`;
+        title: string;
+        description: string;
+        schemaUri: string;
+        reward: bigint;
+        deadline: bigint;
+        status: number;
+        maxSubmissions: bigint;
+        submissionCount: bigint;
+        createdAt: bigint;
+      };
+    }[];
+    isLoading: boolean;
+  };
+
+  const { writeContract, data: hash, error: cancelError } = useWriteContract();
+  const {
+    isLoading: isCancelling,
+    isSuccess: isCancelled,
+    isError: isCancelTxError,
+  } = useWaitForTransactionReceipt({
+    hash,
   });
 
-  const { writeContract, data: hash } = useWriteContract();
-  const { isLoading: isCancelling, isSuccess: isCancelled } =
-    useWaitForTransactionReceipt({
-      hash,
-    });
+  useEffect(() => {
+    if (hash) {
+      addToast({
+        kind: "info",
+        title: "Cancel transaction submitted",
+        description: "Waiting for confirmation...",
+        txHash: hash,
+        chainId: chain?.id,
+      });
+    }
+  }, [hash, chain?.id, addToast]);
 
   useEffect(() => {
-    if (isCancelled) {
+    if (isCancelled && hash) {
+      addToast({
+        kind: "success",
+        title: "Bounty cancelled",
+        description: "The bounty cancellation transaction was confirmed.",
+        txHash: hash,
+        chainId: chain?.id,
+      });
       refetchIds();
-      refetchBounties();
     }
-  }, [isCancelled, refetchIds, refetchBounties]);
+  }, [isCancelled, hash, chain?.id, addToast, refetchIds]);
+
+  useEffect(() => {
+    if (cancelError) {
+      addToast({
+        kind: "error",
+        title: "Cancel transaction failed",
+        description: cancelError.message,
+      });
+    }
+  }, [cancelError, addToast]);
+
+  useEffect(() => {
+    if (isCancelTxError && hash) {
+      addToast({
+        kind: "error",
+        title: "Cancel transaction failed",
+        description: "The transaction was reverted or could not be confirmed.",
+        txHash: hash,
+        chainId: chain?.id,
+      });
+    }
+  }, [isCancelTxError, hash, chain?.id, addToast]);
 
   const handleCancel = (id: bigint) => {
     if (
@@ -301,7 +376,22 @@ function MySubmissionsList({ address }: { address: `0x${string}` }) {
         functionName: "getSubmission",
         args: [id],
       })),
-    });
+    }) as {
+      data?: {
+        error?: Error;
+        result?: {
+          id: bigint;
+          bountyId: bigint;
+          contributor: `0x${string}`;
+          cid: string;
+          metadata: string;
+          status: number;
+          submittedAt: bigint;
+          verifiedAt: bigint;
+        };
+      }[];
+      isLoading: boolean;
+    };
 
   if (isLoadingIds || isLoadingSubmissions) {
     return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useWriteContract,
   useWaitForTransactionReceipt,
@@ -12,9 +12,11 @@ import styles from "./page.module.css";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { ConnectWallet } from "../components/ConnectWallet";
 import { BOUNTY_REGISTRY_ADDRESS, BOUNTY_REGISTRY_ABI } from "../constants";
+import { useToast } from "../components/ToastProvider";
 
 export default function CreateBounty() {
-  const { isConnected } = useAccount();
+  const { isConnected, chain } = useAccount();
+  const { addToast } = useToast();
 
   const [formData, setFormData] = useState({
     title: "",
@@ -34,9 +36,59 @@ export default function CreateBounty() {
     error: writeError,
   } = useWriteContract();
 
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+  const {
+    isLoading: isConfirming,
+    isSuccess,
+    isError,
+  } = useWaitForTransactionReceipt({
     hash,
   });
+
+  useEffect(() => {
+    if (hash) {
+      addToast({
+        kind: "info",
+        title: "Transaction submitted",
+        description: "Waiting for confirmation...",
+        txHash: hash,
+        chainId: chain?.id,
+      });
+    }
+  }, [hash, chain?.id, addToast]);
+
+  useEffect(() => {
+    if (isSuccess && hash) {
+      addToast({
+        kind: "success",
+        title: "Bounty created",
+        description: "Your bounty transaction was confirmed on-chain.",
+        txHash: hash,
+        chainId: chain?.id,
+      });
+    }
+  }, [isSuccess, hash, chain?.id, addToast]);
+
+  useEffect(() => {
+    if (writeError) {
+      addToast({
+        kind: "error",
+        title: "Transaction failed",
+        description: writeError.message,
+      });
+    }
+  }, [writeError, addToast]);
+
+  useEffect(() => {
+    if (isError && hash) {
+      addToast({
+        kind: "error",
+        title: "Transaction failed",
+        description: "The transaction was reverted or could not be confirmed.",
+        txHash: hash,
+        chainId: chain?.id,
+      });
+    }
+  }, [isError, hash, chain?.id, addToast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
