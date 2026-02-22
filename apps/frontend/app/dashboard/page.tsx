@@ -16,6 +16,7 @@ import {
   DATA_REGISTRY_ADDRESS,
 } from "../constants/contracts";
 import { ConnectWallet } from "../components/ConnectWallet";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 
 const formatDate = (timestamp: bigint) => {
   return new Date(Number(timestamp) * 1000).toLocaleDateString();
@@ -29,6 +30,35 @@ const getBountyStatus = (status: number) => {
 const getSubmissionStatus = (status: number) => {
   const statuses = ["PENDING", "VERIFYING", "VERIFIED", "REJECTED"];
   return statuses[status] || "UNKNOWN";
+};
+
+type SubmissionResult = {
+  result?: {
+    id: bigint;
+    bountyId: bigint;
+    contributor: `0x${string}`;
+    cid: string;
+    metadata: string;
+    status: number;
+    submittedAt: bigint;
+    verifiedAt: bigint;
+  };
+};
+
+type BountyResult = {
+  result?: {
+    id: bigint;
+    creator: `0x${string}`;
+    title: string;
+    description: string;
+    schemaUri: string;
+    reward: bigint;
+    deadline: bigint;
+    status: number;
+    maxSubmissions: bigint;
+    submissionCount: bigint;
+    createdAt: bigint;
+  };
 };
 
 function BountySubmissionsList({
@@ -83,8 +113,9 @@ function BountySubmissionsList({
       ) : (
         <div className={styles.grid}>
           {submissions?.map((result, index) => {
-            if (!result.result) return null;
-            const submission = result.result;
+            const typedResult = result as SubmissionResult;
+            if (!typedResult.result) return null;
+            const submission = typedResult.result;
             const status = getSubmissionStatus(submission.status);
 
             return (
@@ -224,8 +255,9 @@ function MyBountiesList({ address }: { address: `0x${string}` }) {
   return (
     <div className={styles.grid}>
       {bounties?.map((result, index) => {
-        if (!result.result) return null;
-        const bounty = result.result;
+        const typedResult = result as BountyResult;
+        if (!typedResult.result) return null;
+        const bounty = typedResult.result;
         const status = getBountyStatus(bounty.status);
 
         return (
@@ -325,8 +357,9 @@ function MySubmissionsList({ address }: { address: `0x${string}` }) {
   return (
     <div className={styles.grid}>
       {submissions?.map((result, index) => {
-        if (!result.result) return null;
-        const submission = result.result;
+        const typedResult = result as SubmissionResult;
+        if (!typedResult.result) return null;
+        const submission = typedResult.result;
         const status = getSubmissionStatus(submission.status);
 
         return (
@@ -417,11 +450,13 @@ export default function Dashboard() {
         </button>
       </div>
 
-      {activeTab === "bounties" ? (
-        <MyBountiesList address={address} />
-      ) : (
-        <MySubmissionsList address={address} />
-      )}
+      <ErrorBoundary label="Dashboard">
+        {activeTab === "bounties" ? (
+          <MyBountiesList address={address} />
+        ) : (
+          <MySubmissionsList address={address} />
+        )}
+      </ErrorBoundary>
     </div>
   );
 }
