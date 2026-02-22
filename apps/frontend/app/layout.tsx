@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { WalletProvider } from "./components/WalletProvider";
+import { ToastProvider } from "./components/ToastProvider";
 import { Navbar } from "./components/Navbar";
 import "./globals.css";
 
@@ -50,8 +51,10 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         <ThemeProvider>
           <WalletProvider>
-            <Navbar />
-            {children}
+            <ToastProvider>
+              <Navbar />
+              {children}
+            </ToastProvider>
           </WalletProvider>
         </ThemeProvider>
       </body>
