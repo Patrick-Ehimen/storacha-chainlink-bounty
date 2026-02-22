@@ -128,6 +128,19 @@ export const BOUNTY_REGISTRY_ABI = [
     type: "function",
   },
   {
+    inputs: [],
+    name: "getTotalBounties",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [
       {
         internalType: "address",

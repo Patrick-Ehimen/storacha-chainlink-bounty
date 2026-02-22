@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import styles from "./ConnectWallet.module.css";
 
@@ -95,10 +96,12 @@ export function ConnectWallet() {
                     title="Switch network"
                   >
                     {chain.hasIcon && chain.iconUrl && (
-                      <img
+                      <Image
                         alt={chain.name ?? "Chain icon"}
                         src={chain.iconUrl}
                         className={styles.chainIcon}
+                        width={18}
+                        height={18}
                       />
                     )}
                     <span className={styles.chainName}>{chain.name}</span>
@@ -122,10 +125,12 @@ export function ConnectWallet() {
                     className={styles.accountButton}
                   >
                     {account.ensAvatar && (
-                      <img
+                      <Image
                         alt="Avatar"
                         src={account.ensAvatar}
                         className={styles.avatar}
+                        width={32}
+                        height={32}
                       />
                     )}
                     <span className={styles.accountInfo}>
