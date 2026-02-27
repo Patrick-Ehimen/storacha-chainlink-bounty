@@ -54,16 +54,23 @@ export class StorachaBountyClient {
     config?: StorachaBountyClientConfig,
   ) {
     this.client = client;
-    const base =
+    const raw =
       config?.serviceUrl && config.serviceUrl.length > 0
         ? config.serviceUrl
         : "https://w3s.link/ipfs/";
-    const normalizedBase = base.endsWith("/") ? base : `${base}/`;
+    const withPath = raw.includes("/ipfs")
+      ? raw
+      : `${raw.replace(/\/+$/, "")}/ipfs/`;
+    const normalizedBase = withPath.endsWith("/") ? withPath : `${withPath}/`;
     this.gatewayBaseUrl = normalizedBase;
     this.gateways =
       config?.serviceUrl && config.serviceUrl.length > 0
         ? [normalizedBase, ...DEFAULT_GATEWAYS]
         : [...DEFAULT_GATEWAYS];
+  }
+
+  private getGatewayList(gateways?: string[]): string[] {
+    return gateways ?? [...this.gateways];
   }
 
   /**
@@ -478,7 +485,7 @@ export class StorachaBountyClient {
       cacheTTL = 300000,
       gateways,
     } = options ?? {};
-    const gatewayList = gateways ?? [...this.gateways];
+    const gatewayList = this.getGatewayList(gateways);
 
     // Check cache first
     if (useCache) {
@@ -580,7 +587,7 @@ export class StorachaBountyClient {
       cacheTTL = 300000,
       gateways,
     } = options ?? {};
-    const gatewayList = gateways ?? [...this.gateways];
+    const gatewayList = this.getGatewayList(gateways);
 
     // Check cache first
     if (useCache) {

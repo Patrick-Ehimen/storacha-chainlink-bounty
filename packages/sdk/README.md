@@ -61,7 +61,6 @@ const client = await StorachaBountyClient.create({
     principal: "did:key:z6MkYourAgentDid",
   },
 });
-});
 ```
 
 ### Authentication
