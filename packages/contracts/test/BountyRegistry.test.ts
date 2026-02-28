@@ -20,11 +20,18 @@ describe("BountyRegistry", function () {
     const registry = await BountyRegistry.deploy();
 
     // Set up bidirectional references
-    await escrowManager.setBountyRegistry(await registry.getAddress());
+    const BOUNTY_REGISTRY_ROLE = await escrowManager.BOUNTY_REGISTRY_ROLE();
+    await escrowManager.grantRole(
+      BOUNTY_REGISTRY_ROLE,
+      await registry.getAddress(),
+    );
+
+    // Set EscrowManager in BountyRegistry (admin only)
     await registry.setEscrowManager(await escrowManager.getAddress());
 
     // Set up DataRegistry access control
-    await registry.setDataRegistry(dataRegistrySigner.address);
+    const DATA_REGISTRY_ROLE = await registry.DATA_REGISTRY_ROLE();
+    await registry.grantRole(DATA_REGISTRY_ROLE, dataRegistrySigner.address);
 
     return {
       registry,
@@ -43,15 +50,18 @@ describe("BountyRegistry", function () {
       await hre.ethers.getContractFactory("BountyRegistry");
     const registry = await BountyRegistry.deploy();
 
-    await registry.setDataRegistry(dataRegistrySigner.address);
+    const DATA_REGISTRY_ROLE = await registry.DATA_REGISTRY_ROLE();
+    await registry.grantRole(DATA_REGISTRY_ROLE, dataRegistrySigner.address);
 
     return { registry, owner, creator, user, dataRegistrySigner };
   }
 
   describe("Deployment", function () {
-    it("Should set owner and initialize counters", async function () {
+    it("Should set owner (admin) and initialize counters", async function () {
       const { registry, owner } = await loadFixture(deployFixture);
-      expect(await registry.owner()).to.equal(owner.address);
+      const DEFAULT_ADMIN_ROLE = await registry.DEFAULT_ADMIN_ROLE();
+      expect(await registry.hasRole(DEFAULT_ADMIN_ROLE, owner.address)).to.be
+        .true;
       expect(await registry.getTotalBounties()).to.equal(0);
     });
   });
@@ -94,34 +104,41 @@ describe("BountyRegistry", function () {
     });
   });
 
-  describe("setDataRegistry", function () {
-    it("Should emit DataRegistryUpdated event", async function () {
+  describe("Access Control", function () {
+    it("Should emit RoleGranted event for DataRegistry", async function () {
       const { dataRegistrySigner } = await loadFixture(deployFixture);
       const BountyRegistry =
         await hre.ethers.getContractFactory("BountyRegistry");
       const newRegistry = await BountyRegistry.deploy();
+      const DATA_REGISTRY_ROLE = await newRegistry.DATA_REGISTRY_ROLE();
 
-      await expect(newRegistry.setDataRegistry(dataRegistrySigner.address))
-        .to.emit(newRegistry, "DataRegistryUpdated")
+      await expect(
+        newRegistry.grantRole(DATA_REGISTRY_ROLE, dataRegistrySigner.address),
+      )
+        .to.emit(newRegistry, "RoleGranted")
         .withArgs(
-          "0x0000000000000000000000000000000000000000",
+          DATA_REGISTRY_ROLE,
           dataRegistrySigner.address,
+          await newRegistry.runner?.getAddress(),
         );
     });
 
-    it("Should revert when setting zero address", async function () {
-      const { registry } = await loadFixture(deployFixture);
-      await expect(
-        registry.setDataRegistry("0x0000000000000000000000000000000000000000"),
-      ).to.be.revertedWithCustomError(registry, "InvalidAddress");
-    });
-
-    it("Should revert when called by non-owner", async function () {
+    it("Should revert when called by non-admin", async function () {
       const { registry, user, dataRegistrySigner } =
         await loadFixture(deployFixture);
+      const DATA_REGISTRY_ROLE = await registry.DATA_REGISTRY_ROLE();
+      const DEFAULT_ADMIN_ROLE = await registry.DEFAULT_ADMIN_ROLE();
+
       await expect(
-        registry.connect(user).setDataRegistry(dataRegistrySigner.address),
-      ).to.be.revertedWithCustomError(registry, "OwnableUnauthorizedAccount");
+        registry
+          .connect(user)
+          .grantRole(DATA_REGISTRY_ROLE, dataRegistrySigner.address),
+      )
+        .to.be.revertedWithCustomError(
+          registry,
+          "AccessControlUnauthorizedAccount",
+        )
+        .withArgs(user.address, DEFAULT_ADMIN_ROLE);
     });
   });
 
@@ -301,12 +318,18 @@ describe("BountyRegistry", function () {
           value: hre.ethers.parseEther("0.1"),
         });
 
+      const DATA_REGISTRY_ROLE = await registry.DATA_REGISTRY_ROLE();
       await expect(
         registry.connect(user).completeBounty(0, user.address, "QmData"),
-      ).to.be.revertedWithCustomError(registry, "Unauthorized");
+      )
+        .to.be.revertedWithCustomError(
+          registry,
+          "AccessControlUnauthorizedAccount",
+        )
+        .withArgs(user.address, DATA_REGISTRY_ROLE);
     });
 
-    it("Should revert if DataRegistry not set", async function () {
+    it("Should revert if DataRegistry not set (no role)", async function () {
       const [owner, creator, user] = await hre.ethers.getSigners();
       const EscrowManager =
         await hre.ethers.getContractFactory("EscrowManager");
@@ -315,8 +338,12 @@ describe("BountyRegistry", function () {
         await hre.ethers.getContractFactory("BountyRegistry");
       const newRegistry = await BountyRegistry.deploy();
 
-      // Set up EscrowManager but NOT DataRegistry
-      await escrowManager.setBountyRegistry(await newRegistry.getAddress());
+      // Set up EscrowManager
+      const BOUNTY_REGISTRY_ROLE = await escrowManager.BOUNTY_REGISTRY_ROLE();
+      await escrowManager.grantRole(
+        BOUNTY_REGISTRY_ROLE,
+        await newRegistry.getAddress(),
+      );
       await newRegistry.setEscrowManager(await escrowManager.getAddress());
 
       const deadline = (await time.latest()) + 86400;
@@ -327,9 +354,16 @@ describe("BountyRegistry", function () {
           value: hre.ethers.parseEther("0.1"),
         });
 
+      const DATA_REGISTRY_ROLE = await newRegistry.DATA_REGISTRY_ROLE();
+
       await expect(
         newRegistry.connect(user).completeBounty(0, user.address, "QmData"),
-      ).to.be.revertedWithCustomError(newRegistry, "DataRegistryNotSet");
+      )
+        .to.be.revertedWithCustomError(
+          newRegistry,
+          "AccessControlUnauthorizedAccount",
+        )
+        .withArgs(user.address, DATA_REGISTRY_ROLE);
     });
   });
 
@@ -363,9 +397,14 @@ describe("BountyRegistry", function () {
           value: hre.ethers.parseEther("0.1"),
         });
 
-      await expect(
-        registry.connect(user).incrementSubmissions(0),
-      ).to.be.revertedWithCustomError(registry, "Unauthorized");
+      const DATA_REGISTRY_ROLE = await registry.DATA_REGISTRY_ROLE();
+
+      await expect(registry.connect(user).incrementSubmissions(0))
+        .to.be.revertedWithCustomError(
+          registry,
+          "AccessControlUnauthorizedAccount",
+        )
+        .withArgs(user.address, DATA_REGISTRY_ROLE);
     });
 
     it("Should revert when max reached", async function () {

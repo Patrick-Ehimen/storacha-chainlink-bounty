@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./BountyRegistry.sol";
 import "./EscrowManager.sol";
@@ -11,7 +11,7 @@ import "./EscrowManager.sol";
  * @notice Manages data submissions and verification results
  * @dev Tracks submissions, coordinates with Chainlink Functions, handles payments
  */
-contract DataRegistry is Ownable, ReentrancyGuard {
+contract DataRegistry is AccessControl, ReentrancyGuard {
     struct Submission {
         uint256 id;
         uint256 bountyId;
@@ -37,8 +37,10 @@ contract DataRegistry is Ownable, ReentrancyGuard {
 
     // Contract references
     BountyRegistry public bountyRegistry;
-    address public functionsConsumer;
     EscrowManager public escrowManager;
+
+    // Roles
+    bytes32 public constant FUNCTIONS_CONSUMER_ROLE = keccak256("FUNCTIONS_CONSUMER_ROLE");
 
     // Events
     event DataSubmitted(
@@ -74,17 +76,15 @@ contract DataRegistry is Ownable, ReentrancyGuard {
     error InvalidCID();
     error SubmissionNotFound();
     error Unauthorized();
-    error FunctionsConsumerNotSet();
     error EscrowManagerNotSet();
     error InvalidStatus();
     error PaymentFailed();
 
     constructor(
-        address _bountyRegistry,
-        address _functionsConsumer
-    ) Ownable(msg.sender) {
+        address _bountyRegistry
+    ) {
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         bountyRegistry = BountyRegistry(_bountyRegistry);
-        functionsConsumer = _functionsConsumer;
     }
 
     /**
@@ -138,8 +138,6 @@ contract DataRegistry is Ownable, ReentrancyGuard {
      * @param submissionId The ID of the submission
      */
     function _requestVerification(uint256 submissionId) internal {
-        if (functionsConsumer == address(0)) revert FunctionsConsumerNotSet();
-
         Submission storage submission = submissions[submissionId];
         submission.status = SubmissionStatus.VERIFYING;
 
@@ -163,10 +161,7 @@ contract DataRegistry is Ownable, ReentrancyGuard {
         uint256 submissionId,
         bool verified,
         bytes memory data
-    ) external nonReentrant {
-        // Only allow calls from FunctionsConsumer
-        if (msg.sender != functionsConsumer) revert Unauthorized();
-
+    ) external nonReentrant onlyRole(FUNCTIONS_CONSUMER_ROLE) {
         Submission storage submission = submissions[submissionId];
 
         if (submission.contributor == address(0)) revert SubmissionNotFound();
@@ -219,19 +214,13 @@ contract DataRegistry is Ownable, ReentrancyGuard {
         emit PaymentReleased(submissionId, submission.contributor, amount);
     }
 
-    /**
-     * @notice Set the FunctionsConsumer address
-     * @param _functionsConsumer Address of the FunctionsConsumer contract
-     */
-    function setFunctionsConsumer(address _functionsConsumer) external onlyOwner {
-        functionsConsumer = _functionsConsumer;
-    }
+    // Remove setFunctionsConsumer as it's replaced by grantRole
 
     /**
      * @notice Set the EscrowManager contract address
      * @param _escrowManager Address of the EscrowManager contract
      */
-    function setEscrowManager(address _escrowManager) external onlyOwner {
+    function setEscrowManager(address _escrowManager) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_escrowManager == address(0)) revert EscrowManagerNotSet();
 
         address oldAddress = address(escrowManager);

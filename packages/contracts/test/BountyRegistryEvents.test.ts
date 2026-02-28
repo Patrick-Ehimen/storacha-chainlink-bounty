@@ -20,11 +20,16 @@ describe("BountyRegistry Events & New Features", function () {
     const registry = await BountyRegistry.deploy();
 
     // Set up bidirectional references
-    await escrowManager.setBountyRegistry(await registry.getAddress());
+    const BOUNTY_REGISTRY_ROLE = await escrowManager.BOUNTY_REGISTRY_ROLE();
+    await escrowManager.grantRole(
+      BOUNTY_REGISTRY_ROLE,
+      await registry.getAddress(),
+    );
     await registry.setEscrowManager(await escrowManager.getAddress());
 
     // Set up DataRegistry access control
-    await registry.setDataRegistry(dataRegistrySigner.address);
+    const DATA_REGISTRY_ROLE = await registry.DATA_REGISTRY_ROLE();
+    await registry.grantRole(DATA_REGISTRY_ROLE, dataRegistrySigner.address);
 
     return {
       registry,
