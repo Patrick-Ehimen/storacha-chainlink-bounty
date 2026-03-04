@@ -1,8 +1,8 @@
-import type { ClientFactoryOptions } from "@storacha/client";
-
 /**
  * Types for the Storacha Bounty SDK
  */
+
+export type StorachaClientFactoryOptions = Record<string, unknown>;
 
 /**
  * Content Identifier (CID) - a unique identifier for content on IPFS
@@ -140,7 +140,7 @@ export interface DelegationResult {
 export interface StorachaBountyClientConfig {
   /** Custom service URL (optional, defaults to Storacha) */
   serviceUrl?: string;
-  clientOptions?: ClientFactoryOptions;
+  clientOptions?: StorachaClientFactoryOptions;
 }
 
 /**
